@@ -17,15 +17,16 @@ import { cn } from "@/lib/utils";
 import { Logo, GradexMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 
-const NAV = [
+const NAV_MAIN = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/structure", label: "Grade Structure", icon: Grid3x3 },
+];
+
+const NAV_MANAGE = [
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/families", label: "Families", icon: FolderTree },
   { href: "/scoping", label: "Scoping", icon: Target },
 ];
-
-const SETTINGS_NAV = [{ href: "/settings/organization", label: "Settings", icon: Settings }];
 
 export function Sidebar({
   collapsed,
@@ -36,8 +37,11 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  const renderItem = (item: (typeof NAV)[number]) => {
-    const active = pathname === item.href || pathname.startsWith(item.href + "/");
+  const renderItem = (item: { href: string; label: string; icon: typeof Briefcase }) => {
+    const active =
+      pathname === item.href ||
+      pathname.startsWith(item.href + "/") ||
+      (item.href.startsWith("/settings") && pathname.startsWith("/settings"));
     const Icon = item.icon;
     return (
       <Link
@@ -45,14 +49,15 @@ export function Sidebar({
         href={item.href}
         title={collapsed ? item.label : undefined}
         className={cn(
-          "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          "group flex items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-[13px] font-semibold transition-all",
           active
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+            ? "bg-primary text-primary-foreground"
+            : "text-secondary-foreground hover:bg-sidebar-accent",
           collapsed && "justify-center px-0",
         )}
+        style={active ? { boxShadow: "var(--shadow-glow)" } : undefined}
       >
-        <Icon className="size-4 shrink-0" />
+        <Icon className={cn("size-[18px] shrink-0", !active && "text-muted-foreground")} />
         {!collapsed && <span className="truncate">{item.label}</span>}
       </Link>
     );
@@ -62,19 +67,29 @@ export function Sidebar({
     <aside
       className={cn(
         "hidden md:flex h-screen sticky top-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200",
-        collapsed ? "w-[68px]" : "w-60",
+        collapsed ? "w-[72px] px-2 py-4" : "w-[248px] px-3 py-4",
       )}
     >
-      <div className={cn("flex h-14 items-center border-b border-sidebar-border px-4", collapsed && "justify-center px-0")}>
+      <div
+        className={cn(
+          "flex items-center border-b border-sidebar-border px-1 pb-4",
+          collapsed && "justify-center px-0",
+        )}
+      >
         <Link href="/dashboard" aria-label="Gradex home">
-          {collapsed ? <GradexMark className="size-6" /> : <Logo />}
+          {collapsed ? <GradexMark className="size-9" /> : <Logo />}
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">{NAV.map(renderItem)}</nav>
+      <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto">
+        {!collapsed && <SectionLabel>Overview</SectionLabel>}
+        {NAV_MAIN.map(renderItem)}
+        {!collapsed && <SectionLabel className="mt-2">Manage</SectionLabel>}
+        {NAV_MANAGE.map(renderItem)}
+      </nav>
 
-      <div className="space-y-1 border-t border-sidebar-border p-3">
-        {SETTINGS_NAV.map(renderItem)}
+      <div className="space-y-0.5 border-t border-sidebar-border pt-3">
+        {renderItem({ href: "/settings/organization", label: "Settings", icon: Settings })}
         <Button
           variant="ghost"
           size="sm"
@@ -86,5 +101,13 @@ export function Sidebar({
         </Button>
       </div>
     </aside>
+  );
+}
+
+function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <p className={cn("px-2 pb-1 pt-2 text-[10px] font-extrabold uppercase tracking-[0.1em] text-muted-foreground/70", className)}>
+      {children}
+    </p>
   );
 }
