@@ -1,0 +1,35 @@
+rules_version = '2';
+
+// Gradex Storage Security Rules — SPEC.md §11.
+// Only org admins/analysts may upload org assets (logos, CSV imports);
+// any active member may read. Membership is checked against Firestore.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function membership(orgId) {
+      return firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isMember(orgId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid))
+        && membership(orgId).data.status == 'active';
+    }
+
+    function canWrite(orgId) {
+      return isMember(orgId)
+        && (membership(orgId).data.role == 'admin' || membership(orgId).data.role == 'analyst');
+    }
+
+    match /orgs/{orgId}/{allPaths=**} {
+      allow read: if isMember(orgId);
+      allow write: if canWrite(orgId)
+        && request.resource.size < 5 * 1024 * 1024; // 5MB cap
+    }
+  }
+}
