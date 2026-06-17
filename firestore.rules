@@ -1,0 +1,102 @@
+rules_version = '2';
+
+// Gradex Firestore Security Rules — SPEC.md §11.
+// Multi-tenant: all org data lives under orgs/{orgId}. Access requires an
+// active membership; roles (admin|analyst|viewer) gate writes. Deny by default.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers ----
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function membership(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isMember(orgId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid))
+        && membership(orgId).data.status == 'active';
+    }
+
+    function role(orgId) {
+      return membership(orgId).data.role;
+    }
+
+    function isAdmin(orgId)   { return isMember(orgId) && role(orgId) == 'admin'; }
+    function isAnalyst(orgId) { return isMember(orgId) && (role(orgId) == 'admin' || role(orgId) == 'analyst'); }
+
+    function isValidGrade(g)  { return g is int && g >= 1 && g <= 25; }
+    function isValidRole(r)   { return r in ['admin', 'analyst', 'viewer']; }
+    function isValidPath(p)   { return p in ['IC', 'M']; }
+    function isValidBand(b) {
+      return b in ['manual','clerical','para_professional','professional','expert',
+                   'supervisory','manager','senior_manager','director','executive','ceo'];
+    }
+
+    // ---- Users ----
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ---- Orgs ----
+    match /orgs/{orgId} {
+      allow read: if isMember(orgId);
+      // Anyone signed-in can create an org (they become its first admin client-side).
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      // Only admins may edit scoping/settings or delete the org.
+      allow update, delete: if isAdmin(orgId);
+
+      // ---- Members ----
+      match /members/{memberId} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId);
+      }
+
+      // ---- Families ----
+      match /families/{familyId} {
+        allow read: if isMember(orgId);
+        allow create, update: if isAnalyst(orgId);
+        allow delete: if isAdmin(orgId);
+      }
+
+      // ---- Jobs ----
+      match /jobs/{jobId} {
+        allow read: if isMember(orgId);
+        allow create, update: if isAnalyst(orgId)
+          && isValidPath(request.resource.data.careerPath)
+          && isValidBand(request.resource.data.band)
+          && (request.resource.data.currentGrade == null
+              || isValidGrade(request.resource.data.currentGrade));
+        allow delete: if isAdmin(orgId);
+
+        // ---- Evaluations (grading history) ----
+        match /evaluations/{evalId} {
+          allow read: if isMember(orgId);
+          allow create: if isAnalyst(orgId)
+            && isValidGrade(request.resource.data.finalGrade)
+            && request.resource.data.gradedBy == request.auth.uid;
+          // History is immutable; deletion only by admins.
+          allow update: if false;
+          allow delete: if isAdmin(orgId);
+        }
+      }
+
+      // ---- Invites ----
+      match /invites/{inviteId} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId);
+      }
+
+      // ---- Activity log (append-only) ----
+      match /activity/{activityId} {
+        allow read: if isMember(orgId);
+        allow create: if isAnalyst(orgId);
+        allow update, delete: if false;
+      }
+    }
+  }
+}
