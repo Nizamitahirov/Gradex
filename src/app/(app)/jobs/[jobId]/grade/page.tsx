@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Lightbulb } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
+import { useSaveEvaluation } from "@/hooks/use-mutations";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,9 +69,10 @@ interface DraftState {
 export default function GradeWizardPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const router = useRouter();
-  const org = useAppStore((s) => s.orgs.find((o) => o.id === s.currentOrgId));
-  const job = useAppStore((s) => s.jobs.find((j) => j.id === jobId));
-  const saveEvaluation = useAppStore((s) => s.saveEvaluation);
+  const { data } = useOrgData();
+  const org = data?.org;
+  const job = data?.jobs.find((j) => j.id === jobId);
+  const saveEvaluation = useSaveEvaluation();
 
   const draftKey = `gradex-draft-${jobId}`;
   const [hydrated, setHydrated] = React.useState(false);
@@ -135,39 +137,37 @@ export default function GradeWizardPage() {
   const next = () => set({ step: Math.min(totalSteps - 1, d.step + 1) });
   const back = () => set({ step: Math.max(0, d.step - 1) });
 
-  const onSave = () => {
-    if (!result.complete) {
+  const onSave = async () => {
+    if (!result.complete || !job) {
       toast.error("Answer all seven factors before saving.");
       return;
     }
-    saveEvaluation(
-      job.id,
-      {
-        factorSelections: d.selections as Record<string, number>,
-        factorScores: result.factorScores,
-        rawScore: result.rawScore,
-        rMax: result.rMax,
-        computedGrade: result.computedGrade,
-        finalGrade: result.finalGrade,
-        bandWindow: result.bandWindow,
-        anomaly: result.anomaly,
-        flags: result.flags,
-        confidence: result.confidence,
-        breakdown: result.breakdown,
-        note: d.note || undefined,
-      },
-      {
-        careerPath,
-        band: effectiveBand,
-        currentGrade: result.finalGrade,
-        confidence: result.confidence,
-        flags: result.flags,
-        status: result.anomaly ? "needs_review" : "graded",
-      },
-    );
-    localStorage.removeItem(draftKey);
-    toast.success(`Saved — ${job.title} is grade ${result.finalGrade}.`);
-    router.push(`/jobs/${job.id}`);
+    try {
+      await saveEvaluation.mutateAsync({
+        jobId: job.id,
+        payload: {
+          factorSelections: d.selections as Record<string, number>,
+          factorScores: result.factorScores,
+          rawScore: result.rawScore,
+          rMax: result.rMax,
+          computedGrade: result.computedGrade,
+          finalGrade: result.finalGrade,
+          bandWindow: result.bandWindow,
+          anomaly: result.anomaly,
+          flags: result.flags,
+          confidence: result.confidence,
+          breakdown: result.breakdown,
+          note: d.note || undefined,
+          careerPath,
+          band: effectiveBand,
+        },
+      });
+      localStorage.removeItem(draftKey);
+      toast.success(`Saved — ${job.title} is grade ${result.finalGrade}.`);
+      router.push(`/jobs/${job.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
   };
 
   const questions = reachableQuestions(d.answers);

@@ -5,11 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Gauge, History, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
+import { useDeleteJob } from "@/hooks/use-mutations";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { GradeBadge } from "@/components/grade-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { GradeExplainer } from "@/components/grade-explainer";
@@ -45,33 +48,28 @@ function toResult(e: Evaluation): GradingResult {
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const router = useRouter();
-  const job = useAppStore((s) => s.jobs.find((j) => j.id === jobId));
-  const family = useAppStore((s) => s.families.find((f) => f.id === job?.familyId));
-  const allEvals = useAppStore((s) => s.evaluations);
-  const jobs = useAppStore((s) => s.jobs);
-  const deleteJob = useAppStore((s) => s.deleteJob);
+  const { data, isLoading } = useOrgData();
+  const deleteJob = useDeleteJob();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
-  const evals = React.useMemo(
-    () => allEvals.filter((e) => e.id.startsWith(`${jobId}:`) || e.id === job?.currentEvaluationId).sort((a, b) => b.gradedAt - a.gradedAt),
-    [allEvals, jobId, job?.currentEvaluationId],
-  );
+  if (isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
 
+  const job = data?.jobs.find((j) => j.id === jobId);
   if (!job) {
     return (
       <EmptyState
         title="Job not found"
-        action={
-          <Button onClick={() => router.push("/jobs")}>
-            <ArrowLeft className="size-4" /> Back to jobs
-          </Button>
-        }
+        action={<Button onClick={() => router.push("/jobs")}><ArrowLeft className="size-4" /> Back to jobs</Button>}
       />
     );
   }
 
+  const family = data?.families.find((f) => f.id === job.familyId);
+  const evals = (data?.evaluations ?? [])
+    .filter((e) => e.jobId === job.id)
+    .sort((a, b) => b.gradedAt - a.gradedAt);
   const current = evals.find((e) => e.id === job.currentEvaluationId) ?? evals[0];
-  const reportsTo = jobs.find((j) => j.id === job.reportsToJobId);
+  const reportsTo = data?.jobs.find((j) => j.id === job.reportsToJobId);
 
   return (
     <div className="space-y-6">
@@ -83,7 +81,7 @@ export default function JobDetailPage() {
         <div className="flex items-start gap-4">
           <GradeBadge grade={job.currentGrade} size="xl" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">{job.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {family && (
                 <Badge variant="outline">
@@ -91,7 +89,7 @@ export default function JobDetailPage() {
                   {family.name}
                 </Badge>
               )}
-              <Badge variant="secondary">{getBand(job.band as BandKey).name}</Badge>
+              <Badge variant="secondary">{getBand(job.band as BandKey).code} · {getBand(job.band as BandKey).name}</Badge>
               <Badge variant="outline">{job.careerPath === "M" ? "Management" : "Individual Contributor"}</Badge>
               <ConfidenceBadge confidence={job.confidence} />
             </div>
@@ -112,10 +110,7 @@ export default function JobDetailPage() {
       {job.description && <p className="max-w-2xl text-sm text-muted-foreground">{job.description}</p>}
       {reportsTo && (
         <p className="text-sm text-muted-foreground">
-          Reports to{" "}
-          <Link href={`/jobs/${reportsTo.id}`} className="font-medium text-primary hover:underline">
-            {reportsTo.title}
-          </Link>
+          Reports to <Link href={`/jobs/${reportsTo.id}`} className="font-medium text-primary hover:underline">{reportsTo.title}</Link>
         </p>
       )}
 
@@ -123,9 +118,7 @@ export default function JobDetailPage() {
         <div className="lg:col-span-2">
           {current ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Grade breakdown</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-base">Grade breakdown</CardTitle></CardHeader>
               <CardContent>
                 <GradeExplainer result={toResult(current)} band={job.band as BandKey} />
                 {current.note && (
@@ -141,20 +134,14 @@ export default function JobDetailPage() {
               icon={Gauge}
               title="Not graded yet"
               description="Run this job through the grading wizard to compute its global grade."
-              action={
-                <Button asChild>
-                  <Link href={`/jobs/${job.id}/grade`}>Grade now</Link>
-                </Button>
-              }
+              action={<Button asChild><Link href={`/jobs/${job.id}/grade`}>Grade now</Link></Button>}
             />
           )}
         </div>
 
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <History className="size-4" /> Evaluation history
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><History className="size-4" /> Evaluation history</CardTitle>
           </CardHeader>
           <CardContent>
             {evals.length === 0 ? (
@@ -170,13 +157,9 @@ export default function JobDetailPage() {
                     <div className="pb-1">
                       <p className="text-sm font-medium">
                         Grade {e.finalGrade}
-                        {e.id === job.currentEvaluationId && (
-                          <Badge variant="success" className="ml-2">Current</Badge>
-                        )}
+                        {e.id === job.currentEvaluationId && <Badge variant="success" className="ml-2">Current</Badge>}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {e.gradedByName ?? "Unknown"} · {formatTimeAgo(e.gradedAt)}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{e.gradedByName ?? "Unknown"} · {formatTimeAgo(e.gradedAt)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(e.gradedAt)}</p>
                     </div>
                   </li>
@@ -191,20 +174,21 @@ export default function JobDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete this job?</DialogTitle>
-            <DialogDescription>
-              This permanently removes &quot;{job.title}&quot; and its evaluation history. This cannot be undone.
-            </DialogDescription>
+            <DialogDescription>This permanently removes &quot;{job.title}&quot; and its evaluation history.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                deleteJob(job.id);
-                toast.success("Job deleted");
-                router.push("/jobs");
+              disabled={deleteJob.isPending}
+              onClick={async () => {
+                try {
+                  await deleteJob.mutateAsync(job.id);
+                  toast.success("Job deleted");
+                  router.push("/jobs");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Failed to delete");
+                }
               }}
             >
               <Trash2 className="size-4" /> Delete job

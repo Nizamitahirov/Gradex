@@ -3,19 +3,16 @@
 import * as React from "react";
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { Topbar } from "@/components/app-shell/topbar";
-import { useAppStore } from "@/stores/app-store";
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
-  const ensureSeeded = useAppStore((s) => s.ensureSeeded);
   const [collapsed, setCollapsed] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
 
   React.useEffect(() => {
-    ensureSeeded();
     setHydrated(true);
     const stored = localStorage.getItem("gradex-sidebar-collapsed");
     if (stored) setCollapsed(stored === "1");
-  }, [ensureSeeded]);
+  }, []);
 
   const toggle = () => {
     setCollapsed((c) => {

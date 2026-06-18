@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Briefcase, FolderTree, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
 import { GradeBadge } from "@/components/grade-badge";
 
 export function GlobalSearch({
@@ -16,8 +16,9 @@ export function GlobalSearch({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const jobs = useAppStore((s) => s.jobs);
-  const families = useAppStore((s) => s.families);
+  const { data } = useOrgData();
+  const jobs = data?.jobs ?? [];
+  const families = data?.families ?? [];
   const [q, setQ] = React.useState("");
 
   React.useEffect(() => {

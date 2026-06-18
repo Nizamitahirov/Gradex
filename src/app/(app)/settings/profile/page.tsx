@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { DEMO_USER } from "@/lib/demo/seed";
+import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,11 @@ import { initials, cn } from "@/lib/utils";
 
 export default function ProfileSettingsPage() {
   const { theme, setTheme } = useTheme();
-  const [name, setName] = React.useState(DEMO_USER.displayName);
+  const { user } = useAuth();
+  const [name, setName] = React.useState("");
+  React.useEffect(() => {
+    if (user) setName(user.displayName);
+  }, [user]);
 
   const themes = [
     { value: "light", label: "Light", icon: Sun },
@@ -34,7 +38,7 @@ export default function ProfileSettingsPage() {
             <Avatar className="size-14">
               <AvatarFallback className="text-lg">{initials(name)}</AvatarFallback>
             </Avatar>
-            <div className="text-sm text-muted-foreground">{DEMO_USER.email}</div>
+            <div className="text-sm text-muted-foreground">{user?.email ?? user?.username ?? ""}</div>
           </div>
           <div className="space-y-2 sm:max-w-sm">
             <Label htmlFor="dn">Display name</Label>

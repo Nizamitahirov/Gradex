@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Sparkles } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
+import { useSaveScoping } from "@/hooks/use-mutations";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,9 @@ const STEPS = ["Revenue", "Employees", "Complexity & reach", "Result"];
 
 export default function ScopingPage() {
   const router = useRouter();
-  const org = useAppStore((s) => s.orgs.find((o) => o.id === s.currentOrgId));
-  const saveScoping = useAppStore((s) => s.saveScoping);
+  const { data } = useOrgData();
+  const org = data?.org;
+  const saveScoping = useSaveScoping();
 
   const existing = org?.scoping?.inputs;
   const [step, setStep] = React.useState(0);
@@ -46,10 +48,14 @@ export default function ScopingPage() {
 
   if (!org) return null;
 
-  const onSave = () => {
-    saveScoping(org.id, inputs, result);
-    toast.success(`Scoping saved — Company Grade ${result.companyGrade}. Grading is unlocked.`);
-    router.push("/dashboard");
+  const onSave = async () => {
+    try {
+      await saveScoping.mutateAsync({ inputs, result });
+      toast.success(`Scoping saved — Company Grade ${result.companyGrade}. Grading is unlocked.`);
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save scoping");
+    }
   };
 
   return (
