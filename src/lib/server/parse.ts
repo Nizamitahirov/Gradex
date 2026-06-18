@@ -12,28 +12,11 @@ export interface ParsedDoc {
 }
 
 async function parsePdf(buf: Buffer): Promise<string> {
-  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await getDocument({ data: new Uint8Array(buf), useSystemFonts: true }).promise;
-  let out = "";
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const tc = await page.getTextContent();
-    let last: number | null = null;
-    let line = "";
-    const lines: string[] = [];
-    for (const it of tc.items as { str: string; transform: number[] }[]) {
-      const y = it.transform[5];
-      if (last !== null && Math.abs(y - last) > 3) {
-        lines.push(line.trim());
-        line = "";
-      }
-      line += (line && !line.endsWith(" ") ? " " : "") + it.str;
-      last = y;
-    }
-    if (line.trim()) lines.push(line.trim());
-    out += lines.filter(Boolean).join("\n") + "\n\n";
-  }
-  return out.trim();
+  // unpdf ships a serverless-safe pdf.js build (no DOMMatrix / canvas needed).
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buf));
+  const { text } = await extractText(pdf, { mergePages: true });
+  return (Array.isArray(text) ? text.join("\n") : text).trim();
 }
 
 async function parseDocx(buf: Buffer): Promise<{ text: string; html: string }> {
