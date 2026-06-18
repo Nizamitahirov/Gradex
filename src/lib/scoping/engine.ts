@@ -1,161 +1,131 @@
 /**
- * Scoping engine — SPEC.md §6 (GGS step 1).
+ * GGS Step 1 — Business Analysis → Company Grade (CEO grade).
+ * Implements the WTW GGS 4.2 Scope Data Matrix exactly (see docs/GGS_MODEL.md).
  *
- * Sizes the ORGANIZATION first to calibrate which slice of the 1–25 grade
- * scale it should use and where the CEO sits. Pure & unit-tested.
- *
- * All point tables and the calibration mapping are Gradex's own model.
+ * Company Grade (16–25) = average of three Scope Grades:
+ *   1. Revenue, 2. FTE Employees, 3. Diversity/Complexity × Geographic Breadth.
+ * Pure & unit-tested.
  */
 
-export type GeoBreadth = "single" | "regional" | "national" | "multinational" | "global";
-export type Complexity = "single" | "few" | "multiple" | "conglomerate";
+export type GeographicBreadth = "domestic" | "international" | "global";
+export type DiversityComplexity = "low" | "medium" | "high";
+export type BusinessSize = "small" | "medium" | "large";
 
 export interface ScopingInputs {
-  /** Annual revenue in the org's currency (absolute amount). */
-  revenue: number;
-  currency: string;
-  /** Total headcount. */
-  headcount: number;
-  geoBreadth: GeoBreadth;
-  complexity: Complexity;
-  /** Informational only in v1; does not affect the math. */
+  /** Annual revenue in MILLIONS of USD. */
+  revenueMillions: number;
+  /** Full-time-equivalent employees. */
+  fteEmployees: number;
+  diversityComplexity: DiversityComplexity;
+  geographicBreadth: GeographicBreadth;
+  /** Informational only. */
   industry?: string;
 }
 
-export interface ScopingBreakdown {
-  revenuePoints: number;
-  headcountPoints: number;
-  geoPoints: number;
-  complexityPoints: number;
-  total: number;
-}
-
 export interface ScopingResult {
-  topGrade: number;
-  bottomGrade: number;
+  revenueGrade: number;
+  fteGrade: number;
+  dcGeoGrade: number;
+  /** Averaged & rounded company grade (16–25). */
+  companyGrade: number;
   ceoGrade: number;
+  bottomGrade: number;
+  topGrade: number;
   usedGrades: number[];
-  breakdown: ScopingBreakdown;
+  businessSize: BusinessSize;
 }
 
-// --- Point tables (§6) ---
-
-/** Revenue tier → 0–5 pts. Thresholds in absolute currency units. */
-function revenuePoints(revenue: number): number {
-  if (revenue < 10_000_000) return 0; // < $10M
-  if (revenue < 100_000_000) return 1; // $10M–$100M
-  if (revenue < 1_000_000_000) return 2; // $100M–$1B
-  if (revenue < 10_000_000_000) return 3; // $1B–$10B
-  if (revenue < 50_000_000_000) return 4; // $10B–$50B
-  return 5; // > $50B
-}
-
-/** Headcount tier → 0–5 pts. */
-function headcountPoints(headcount: number): number {
-  if (headcount < 50) return 0;
-  if (headcount < 250) return 1;
-  if (headcount < 1_000) return 2;
-  if (headcount < 10_000) return 3;
-  if (headcount < 50_000) return 4;
-  return 5;
-}
-
-/** Geographic breadth → 0–4 pts. */
-const GEO_POINTS: Record<GeoBreadth, number> = {
-  single: 0,
-  regional: 1,
-  national: 2,
-  multinational: 3,
-  global: 4,
-};
-
-/** Business complexity → 0–4 pts. */
-const COMPLEXITY_POINTS: Record<Complexity, number> = {
-  single: 0,
-  few: 1,
-  multiple: 3,
-  conglomerate: 4,
-};
-
-/**
- * Top-grade calibration table mapping S (0–18) → top grade.
- * Calibration targets (§6):
- *   S≈0–2  → ~12–14   (smallest orgs)
- *   S≈7–10 → ~18–20   (mid orgs)
- *   S≈16–18→ ~24–25   (largest/most complex)
- * Monotonic, documented lookup.
- */
-const TOP_GRADE_BY_S: number[] = [
-  12, // S=0
-  13, // 1
-  14, // 2
-  15, // 3
-  16, // 4
-  17, // 5
-  17, // 6
-  18, // 7
-  19, // 8
-  19, // 9
-  20, // 10
-  21, // 11
-  21, // 12
-  22, // 13
-  23, // 14
-  23, // 15
-  24, // 16
-  24, // 17
-  25, // 18
+// Revenue (millions USD) lower thresholds → grade (§2.4).
+const REVENUE_TIERS: { grade: number; from: number }[] = [
+  { grade: 25, from: 100_000 },
+  { grade: 24, from: 50_000 },
+  { grade: 23, from: 10_000 },
+  { grade: 22, from: 5_000 },
+  { grade: 21, from: 2_000 },
+  { grade: 20, from: 1_000 },
+  { grade: 19, from: 500 },
+  { grade: 18, from: 150 },
+  { grade: 17, from: 75 },
+  { grade: 16, from: 0 },
 ];
 
-/**
- * How many grade steps the org spans, growing with size.
- * Small orgs span ~8 grades, giants ~19.
- */
-function spanFromS(s: number): number {
-  // Linear interpolation 8 (S=0) → 19 (S=18), rounded.
-  return Math.round(8 + (s / 18) * (19 - 8));
+// FTE employees lower thresholds → grade (§2.5).
+const FTE_TIERS: { grade: number; from: number }[] = [
+  { grade: 25, from: 200_000 },
+  { grade: 24, from: 75_000 },
+  { grade: 23, from: 27_500 },
+  { grade: 22, from: 10_600 },
+  { grade: 21, from: 4_100 },
+  { grade: 20, from: 1_600 },
+  { grade: 19, from: 620 },
+  { grade: 18, from: 240 },
+  { grade: 17, from: 90 },
+  { grade: 16, from: 0 },
+];
+
+// Diversity/Complexity × Geographic Breadth → grade (§2.3).
+const DC_GEO_MATRIX: Record<DiversityComplexity, Record<GeographicBreadth, number>> = {
+  low: { domestic: 16, international: 19, global: 20 },
+  medium: { domestic: 18, international: 21, global: 22 },
+  high: { domestic: 20, international: 23, global: 24 },
+};
+
+function tierGrade(value: number, tiers: { grade: number; from: number }[]): number {
+  for (const t of tiers) if (value >= t.from) return t.grade;
+  return 16;
+}
+
+export function revenueScopeGrade(revenueMillions: number): number {
+  return tierGrade(revenueMillions, REVENUE_TIERS);
+}
+
+export function fteScopeGrade(fteEmployees: number): number {
+  return tierGrade(fteEmployees, FTE_TIERS);
+}
+
+export function dcGeoScopeGrade(dc: DiversityComplexity, geo: GeographicBreadth): number {
+  return DC_GEO_MATRIX[dc][geo];
+}
+
+export function businessSize(companyGrade: number): BusinessSize {
+  if (companyGrade <= 18) return "small";
+  if (companyGrade <= 22) return "medium";
+  return "large";
 }
 
 export function computeScoping(inputs: ScopingInputs): ScopingResult {
-  const rp = revenuePoints(inputs.revenue);
-  const hp = headcountPoints(inputs.headcount);
-  const gp = GEO_POINTS[inputs.geoBreadth];
-  const cp = COMPLEXITY_POINTS[inputs.complexity];
-  const total = rp + hp + gp + cp; // 0–18
+  const revenueGrade = revenueScopeGrade(inputs.revenueMillions);
+  const fteGrade = fteScopeGrade(inputs.fteEmployees);
+  const dcGeoGrade = dcGeoScopeGrade(inputs.diversityComplexity, inputs.geographicBreadth);
 
-  const topGrade = TOP_GRADE_BY_S[Math.min(total, TOP_GRADE_BY_S.length - 1)];
-  const span = spanFromS(total);
-  const bottomGrade = Math.max(1, topGrade - span);
-
+  const companyGrade = Math.round((revenueGrade + fteGrade + dcGeoGrade) / 3);
+  const ceoGrade = companyGrade;
+  const bottomGrade = 1;
+  const topGrade = companyGrade;
   const usedGrades: number[] = [];
   for (let g = bottomGrade; g <= topGrade; g++) usedGrades.push(g);
 
   return {
-    topGrade,
+    revenueGrade,
+    fteGrade,
+    dcGeoGrade,
+    companyGrade,
+    ceoGrade,
     bottomGrade,
-    ceoGrade: topGrade,
+    topGrade,
     usedGrades,
-    breakdown: {
-      revenuePoints: rp,
-      headcountPoints: hp,
-      geoPoints: gp,
-      complexityPoints: cp,
-      total,
-    },
+    businessSize: businessSize(companyGrade),
   };
 }
 
-export const GEO_BREADTH_OPTIONS: { value: GeoBreadth; label: string }[] = [
-  { value: "single", label: "Single location" },
-  { value: "regional", label: "City / Region" },
-  { value: "national", label: "National" },
-  { value: "multinational", label: "Multi-national (few countries)" },
-  { value: "global", label: "Global (many countries)" },
+export const GEOGRAPHIC_BREADTH_OPTIONS: { value: GeographicBreadth; label: string; description: string }[] = [
+  { value: "domestic", label: "Domestic", description: "Majority of operations in the home country or a small region." },
+  { value: "international", label: "International", description: "Multi-function operations across a region or several countries on different continents." },
+  { value: "global", label: "Global", description: "Key functions represented on three or more continents." },
 ];
 
-export const COMPLEXITY_OPTIONS: { value: Complexity; label: string }[] = [
-  { value: "single", label: "Single product/service, simple ops" },
-  { value: "few", label: "Few product lines" },
-  { value: "multiple", label: "Multiple diverse business units" },
-  { value: "conglomerate", label: "Highly diversified conglomerate" },
+export const DIVERSITY_COMPLEXITY_OPTIONS: { value: DiversityComplexity; label: string; description: string }[] = [
+  { value: "low", label: "Low", description: "Single industry / related products; non-complex or integrated entity." },
+  { value: "medium", label: "Medium", description: "Some diversity or complexity across products / business units." },
+  { value: "high", label: "High", description: "Multiple unrelated industries / full value chain / independent complex units." },
 ];

@@ -1,9 +1,6 @@
 /**
- * Demo seed data — SPEC.md §18.
- *
- * Builds one fully-graded demo org (~4 families, ~25 jobs across bands/grades)
- * so the structure grid and dashboards look alive immediately. Grades are
- * computed with the real grading engine so the data is internally consistent.
+ * Demo seed data — built with the real GGS engines so it is internally
+ * consistent with the WTW GGS 4.2 model (see docs/GGS_MODEL.md).
  */
 
 import { computeScoping } from "@/lib/scoping";
@@ -29,48 +26,56 @@ export interface SeededData {
 
 interface JobSpec {
   title: string;
-  family: string; // family key
+  family: string;
   path: CareerPath;
   band: BandKey;
   sel: FactorSelections;
 }
 
-// A spread of jobs across families, bands and grades.
+// selections: [functionalKnowledge, businessExpertise, leadership, problemSolving, natureOfImpact, areaOfImpact, interpersonalSkills]
+const s = (
+  fk: number, be: number, ld: number, ps: number, ni: number, ai: number, ip: number,
+): FactorSelections => ({
+  functionalKnowledge: fk, businessExpertise: be, leadership: ld, problemSolving: ps,
+  natureOfImpact: ni, areaOfImpact: ai, interpersonalSkills: ip,
+});
+
 const SPECS: JobSpec[] = [
   // Engineering
-  { title: "Software Engineering Intern", family: "eng", path: "IC", band: "para_professional", sel: { functionalKnowledge: 1, businessExpertise: 0, leadership: 0, problemSolving: 1, natureOfImpact: 0, areaOfImpact: 0, interpersonalSkills: 0 } },
-  { title: "Software Engineer", family: "eng", path: "IC", band: "professional", sel: { functionalKnowledge: 3, businessExpertise: 1, leadership: 0, problemSolving: 2, natureOfImpact: 1, areaOfImpact: 1, interpersonalSkills: 1 } },
-  { title: "Senior Software Engineer", family: "eng", path: "IC", band: "professional", sel: { functionalKnowledge: 4, businessExpertise: 2, leadership: 1, problemSolving: 3, natureOfImpact: 2, areaOfImpact: 2, interpersonalSkills: 1 } },
-  { title: "Principal Engineer", family: "eng", path: "IC", band: "expert", sel: { functionalKnowledge: 5, businessExpertise: 3, leadership: 1, problemSolving: 4, natureOfImpact: 3, areaOfImpact: 3, interpersonalSkills: 3 } },
-  { title: "Engineering Manager", family: "eng", path: "M", band: "manager", sel: { functionalKnowledge: 4, businessExpertise: 2, leadership: 3, problemSolving: 3, natureOfImpact: 2, areaOfImpact: 3, interpersonalSkills: 2 } },
-  { title: "VP of Engineering", family: "eng", path: "M", band: "director", sel: { functionalKnowledge: 5, businessExpertise: 3, leadership: 5, problemSolving: 4, natureOfImpact: 3, areaOfImpact: 4, interpersonalSkills: 3 } },
+  { title: "Facilities Operative", family: "eng", path: "IC", band: "1", sel: s(0, 0, 0, 0, 0, 0, 0) },
+  { title: "QA Technician", family: "eng", path: "IC", band: "2", sel: s(2, 1, 0, 1, 1, 1, 1) },
+  { title: "Software Engineer", family: "eng", path: "IC", band: "3IC", sel: s(3, 2, 1, 2, 2, 2, 2) },
+  { title: "Principal Engineer", family: "eng", path: "IC", band: "4IC", sel: s(5, 3, 1, 4, 3, 4, 3) },
+  { title: "Engineering Team Lead", family: "eng", path: "M", band: "3M", sel: s(3, 2, 2, 2, 2, 2, 3) },
+  { title: "Engineering Manager", family: "eng", path: "M", band: "4M", sel: s(4, 3, 3, 3, 3, 3, 3) },
+  { title: "VP of Engineering", family: "eng", path: "M", band: "5FS", sel: s(5, 4, 4, 4, 4, 4, 4) },
 
   // Finance
-  { title: "Accounts Payable Clerk", family: "fin", path: "IC", band: "clerical", sel: { functionalKnowledge: 1, businessExpertise: 0, leadership: 0, problemSolving: 0, natureOfImpact: 0, areaOfImpact: 0, interpersonalSkills: 0 } },
-  { title: "Financial Analyst", family: "fin", path: "IC", band: "professional", sel: { functionalKnowledge: 3, businessExpertise: 2, leadership: 0, problemSolving: 2, natureOfImpact: 1, areaOfImpact: 2, interpersonalSkills: 1 } },
-  { title: "Senior Financial Analyst", family: "fin", path: "IC", band: "professional", sel: { functionalKnowledge: 4, businessExpertise: 3, leadership: 1, problemSolving: 3, natureOfImpact: 2, areaOfImpact: 2, interpersonalSkills: 2 } },
-  { title: "Finance Manager", family: "fin", path: "M", band: "manager", sel: { functionalKnowledge: 4, businessExpertise: 3, leadership: 3, problemSolving: 3, natureOfImpact: 2, areaOfImpact: 3, interpersonalSkills: 2 } },
-  { title: "Director of Finance", family: "fin", path: "M", band: "director", sel: { functionalKnowledge: 4, businessExpertise: 4, leadership: 4, problemSolving: 3, natureOfImpact: 3, areaOfImpact: 4, interpersonalSkills: 3 } },
-  { title: "Chief Financial Officer", family: "fin", path: "M", band: "executive", sel: { functionalKnowledge: 5, businessExpertise: 4, leadership: 5, problemSolving: 4, natureOfImpact: 4, areaOfImpact: 4, interpersonalSkills: 4 } },
+  { title: "Accounts Payable Clerk", family: "fin", path: "IC", band: "2", sel: s(1, 1, 0, 1, 1, 0, 1) },
+  { title: "Financial Analyst", family: "fin", path: "IC", band: "3IC", sel: s(3, 2, 0, 2, 2, 2, 2) },
+  { title: "Compensation Specialist", family: "fin", path: "IC", band: "4IC", sel: s(4, 3, 1, 3, 3, 3, 3) },
+  { title: "Finance Manager", family: "fin", path: "M", band: "4M", sel: s(4, 3, 3, 3, 3, 3, 3) },
+  { title: "Chief Financial Officer", family: "fin", path: "M", band: "5BS", sel: s(5, 4, 5, 4, 4, 5, 5) },
 
   // Sales
-  { title: "Sales Development Rep", family: "sales", path: "IC", band: "para_professional", sel: { functionalKnowledge: 1, businessExpertise: 1, leadership: 0, problemSolving: 1, natureOfImpact: 1, areaOfImpact: 1, interpersonalSkills: 1 } },
-  { title: "Account Executive", family: "sales", path: "IC", band: "professional", sel: { functionalKnowledge: 2, businessExpertise: 2, leadership: 0, problemSolving: 2, natureOfImpact: 2, areaOfImpact: 2, interpersonalSkills: 2 } },
-  { title: "Sales Team Lead", family: "sales", path: "M", band: "supervisory", sel: { functionalKnowledge: 2, businessExpertise: 2, leadership: 2, problemSolving: 2, natureOfImpact: 2, areaOfImpact: 2, interpersonalSkills: 3 } },
-  { title: "Regional Sales Manager", family: "sales", path: "M", band: "manager", sel: { functionalKnowledge: 3, businessExpertise: 3, leadership: 3, problemSolving: 2, natureOfImpact: 3, areaOfImpact: 3, interpersonalSkills: 3 } },
-  { title: "VP of Sales", family: "sales", path: "M", band: "director", sel: { functionalKnowledge: 3, businessExpertise: 4, leadership: 5, problemSolving: 3, natureOfImpact: 3, areaOfImpact: 4, interpersonalSkills: 4 } },
+  { title: "Sales Development Rep", family: "sales", path: "IC", band: "2", sel: s(1, 1, 0, 1, 1, 1, 2) },
+  { title: "Account Executive", family: "sales", path: "IC", band: "3IC", sel: s(2, 2, 0, 2, 2, 2, 3) },
+  { title: "Sales Team Lead", family: "sales", path: "M", band: "3M", sel: s(2, 2, 2, 2, 2, 2, 3) },
+  { title: "Regional Sales Manager", family: "sales", path: "M", band: "4M", sel: s(3, 3, 3, 3, 3, 3, 4) },
+  { title: "VP of Sales", family: "sales", path: "M", band: "5FS", sel: s(3, 4, 4, 3, 4, 4, 5) },
 
   // People / HR
-  { title: "HR Coordinator", family: "people", path: "IC", band: "clerical", sel: { functionalKnowledge: 2, businessExpertise: 1, leadership: 0, problemSolving: 1, natureOfImpact: 0, areaOfImpact: 1, interpersonalSkills: 1 } },
-  { title: "HR Business Partner", family: "people", path: "IC", band: "professional", sel: { functionalKnowledge: 3, businessExpertise: 2, leadership: 1, problemSolving: 2, natureOfImpact: 1, areaOfImpact: 2, interpersonalSkills: 3 } },
-  { title: "Compensation Analyst", family: "people", path: "IC", band: "professional", sel: { functionalKnowledge: 3, businessExpertise: 2, leadership: 0, problemSolving: 3, natureOfImpact: 2, areaOfImpact: 2, interpersonalSkills: 2 } },
-  { title: "People Operations Manager", family: "people", path: "M", band: "manager", sel: { functionalKnowledge: 3, businessExpertise: 3, leadership: 3, problemSolving: 2, natureOfImpact: 2, areaOfImpact: 3, interpersonalSkills: 3 } },
-  { title: "Chief People Officer", family: "people", path: "M", band: "executive", sel: { functionalKnowledge: 4, businessExpertise: 4, leadership: 5, problemSolving: 3, natureOfImpact: 3, areaOfImpact: 4, interpersonalSkills: 4 } },
+  { title: "HR Coordinator", family: "people", path: "IC", band: "2", sel: s(2, 1, 0, 1, 1, 1, 2) },
+  { title: "HR Business Partner", family: "people", path: "IC", band: "3IC", sel: s(3, 2, 1, 2, 2, 3, 3) },
+  { title: "People Operations Manager", family: "people", path: "M", band: "4M", sel: s(3, 3, 3, 2, 3, 3, 3) },
+  { title: "Chief People Officer", family: "people", path: "M", band: "5BS", sel: s(4, 4, 5, 3, 4, 5, 5) },
 
   // Operations
-  { title: "Warehouse Operative", family: "ops", path: "IC", band: "manual", sel: { functionalKnowledge: 0, businessExpertise: 0, leadership: 0, problemSolving: 0, natureOfImpact: 0, areaOfImpact: 0, interpersonalSkills: 0 } },
-  { title: "Operations Analyst", family: "ops", path: "IC", band: "professional", sel: { functionalKnowledge: 3, businessExpertise: 2, leadership: 0, problemSolving: 2, natureOfImpact: 1, areaOfImpact: 2, interpersonalSkills: 1 } },
-  { title: "Chief Executive Officer", family: "ops", path: "M", band: "ceo", sel: { functionalKnowledge: 5, businessExpertise: 4, leadership: 5, problemSolving: 4, natureOfImpact: 4, areaOfImpact: 5, interpersonalSkills: 4 } },
+  { title: "Warehouse Operative", family: "ops", path: "IC", band: "1", sel: s(0, 0, 0, 0, 0, 0, 0) },
+  { title: "Operations Analyst", family: "ops", path: "IC", band: "3IC", sel: s(3, 2, 0, 2, 2, 2, 1) },
+  { title: "Operations Supervisor", family: "ops", path: "M", band: "3M", sel: s(2, 2, 2, 2, 2, 2, 2) },
+  { title: "Chief Operating Officer", family: "ops", path: "M", band: "5BS", sel: s(4, 4, 5, 4, 4, 5, 5) },
+  { title: "Chief Executive Officer", family: "ops", path: "M", band: "ceo", sel: s(5, 4, 5, 4, 4, 5, 5) },
 ];
 
 const FAMILY_DEFS = [
@@ -84,11 +89,11 @@ const FAMILY_DEFS = [
 export function buildSeed(now = Date.now()): SeededData {
   const orgId = "demo-org";
   const inputs = {
-    revenue: 3_000_000_000,
+    revenueMillions: 3_000, // $3B
     currency: "USD",
-    headcount: 8_000,
-    geoBreadth: "national" as const,
-    complexity: "multiple" as const,
+    fteEmployees: 8_000,
+    geographicBreadth: "international" as const,
+    diversityComplexity: "medium" as const,
     industry: "Technology",
   };
   const result = computeScoping(inputs);
@@ -113,7 +118,7 @@ export function buildSeed(now = Date.now()): SeededData {
     key: f.key,
     description: f.description,
     color: f.color,
-    jobCount: SPECS.filter((s) => s.family === f.key).length,
+    jobCount: SPECS.filter((sp) => sp.family === f.key).length,
     createdAt: now - 1000 * 60 * 60 * 24 * (28 - i),
     updatedAt: now,
   }));
@@ -127,6 +132,7 @@ export function buildSeed(now = Date.now()): SeededData {
       band: spec.band,
       careerPath: spec.path,
       scopedRange,
+      companyGrade: result.companyGrade,
     });
     const jobId = `job-${i}`;
     const evalId = `eval-${i}`;
@@ -187,7 +193,7 @@ export function buildSeed(now = Date.now()): SeededData {
       type: "scoping_completed",
       actorId: DEMO_USER.uid,
       actorName: DEMO_USER.displayName,
-      summary: `Completed scoping — grades ${result.bottomGrade}–${result.topGrade}, CEO at ${result.topGrade}`,
+      summary: `Completed scoping — Company Grade ${result.companyGrade} (CEO), grades 1–${result.topGrade}`,
       createdAt: org.scoping!.completedAt!,
     },
     ...jobs.slice(-6).map((j) => ({

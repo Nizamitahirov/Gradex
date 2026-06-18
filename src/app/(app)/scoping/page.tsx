@@ -14,22 +14,16 @@ import { Label } from "@/components/ui/label";
 import { WizardProgress } from "@/components/wizard/wizard-progress";
 import { ScaleVisual } from "@/components/scale-visual";
 import { AnimatedNumber } from "@/components/animated-number";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   computeScoping,
-  COMPLEXITY_OPTIONS,
-  GEO_BREADTH_OPTIONS,
-  type Complexity,
-  type GeoBreadth,
+  DIVERSITY_COMPLEXITY_OPTIONS,
+  GEOGRAPHIC_BREADTH_OPTIONS,
+  type DiversityComplexity,
+  type GeographicBreadth,
 } from "@/lib/scoping";
 
-const STEPS = ["Revenue", "People & reach", "Complexity", "Result"];
+const STEPS = ["Revenue", "Employees", "Complexity & reach", "Result"];
 
 export default function ScopingPage() {
   const router = useRouter();
@@ -38,29 +32,31 @@ export default function ScopingPage() {
 
   const existing = org?.scoping?.inputs;
   const [step, setStep] = React.useState(0);
-  const [revenue, setRevenue] = React.useState(existing?.revenue ?? 3_000_000_000);
-  const [currency, setCurrency] = React.useState(existing?.currency ?? org?.currency ?? "USD");
-  const [headcount, setHeadcount] = React.useState(existing?.headcount ?? 8_000);
-  const [geoBreadth, setGeoBreadth] = React.useState<GeoBreadth>(existing?.geoBreadth ?? "national");
-  const [complexity, setComplexity] = React.useState<Complexity>(existing?.complexity ?? "multiple");
+  const [revenueMillions, setRevenueMillions] = React.useState(existing?.revenueMillions ?? 3000);
+  const [fteEmployees, setFteEmployees] = React.useState(existing?.fteEmployees ?? 8000);
+  const [geographicBreadth, setGeographicBreadth] = React.useState<GeographicBreadth>(existing?.geographicBreadth ?? "international");
+  const [diversityComplexity, setDiversityComplexity] = React.useState<DiversityComplexity>(existing?.diversityComplexity ?? "medium");
   const [industry, setIndustry] = React.useState(existing?.industry ?? org?.industry ?? "Technology");
 
-  const inputs = { revenue, currency, headcount, geoBreadth, complexity, industry };
-  const result = React.useMemo(() => computeScoping(inputs), [revenue, currency, headcount, geoBreadth, complexity, industry]);
+  const inputs = { revenueMillions, currency: "USD", fteEmployees, geographicBreadth, diversityComplexity, industry };
+  const result = React.useMemo(
+    () => computeScoping(inputs),
+    [revenueMillions, fteEmployees, geographicBreadth, diversityComplexity, industry],
+  );
 
   if (!org) return null;
 
   const onSave = () => {
     saveScoping(org.id, inputs, result);
-    toast.success("Scoping saved — grading is now unlocked.");
+    toast.success(`Scoping saved — Company Grade ${result.companyGrade}. Grading is unlocked.`);
     router.push("/dashboard");
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Scoping"
-        description="Size your organization so grades are calibrated to its scale. Recomputes live as you answer."
+        title="Scoping — Business Analysis"
+        description="Size the organization to set the Company (CEO) Grade. The GGS Scope Data Matrix averages Revenue, FTE and Diversity/Complexity × Geographic Breadth."
       />
       <WizardProgress steps={STEPS} current={step} onStepClick={setStep} />
 
@@ -78,126 +74,79 @@ export default function ScopingPage() {
               >
                 {step === 0 && (
                   <>
-                    <StepIntro
-                      title="Annual revenue"
-                      body="Revenue is one of the strongest signals of organizational size. Enter your total annual revenue."
-                    />
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="revenue">Annual revenue</Label>
-                        <Input
-                          id="revenue"
-                          type="number"
-                          min={0}
-                          value={revenue}
-                          onChange={(e) => setRevenue(Number(e.target.value))}
-                          className="tnum"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="currency">Currency</Label>
-                        <Select value={currency} onValueChange={setCurrency}>
-                          <SelectTrigger id="currency">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["USD", "EUR", "GBP", "AZN", "JPY"].map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <Intro title="Annual revenue" body="Latest reported annual revenue, in millions of USD. Revenue is a key driver of business size." />
+                    <div className="space-y-2">
+                      <Label htmlFor="rev">Annual revenue (millions USD)</Label>
+                      <Input id="rev" type="number" min={0} value={revenueMillions} onChange={(e) => setRevenueMillions(Number(e.target.value))} className="tnum" />
+                      <p className="text-xs text-muted-foreground">
+                        Revenue Scope Grade: <span className="font-medium tnum">{result.revenueGrade}</span>
+                      </p>
                     </div>
                   </>
                 )}
-
                 {step === 1 && (
                   <>
-                    <StepIntro
-                      title="People & geographic reach"
-                      body="Headcount and how widely you operate both scale the structure."
-                    />
+                    <Intro title="FTE employees" body="Full-time-equivalent number of employees currently employed by the business." />
                     <div className="space-y-2">
-                      <Label htmlFor="headcount">Total headcount</Label>
-                      <Input
-                        id="headcount"
-                        type="number"
-                        min={0}
-                        value={headcount}
-                        onChange={(e) => setHeadcount(Number(e.target.value))}
-                        className="tnum"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Geographic breadth</Label>
-                      <Select value={geoBreadth} onValueChange={(v) => setGeoBreadth(v as GeoBreadth)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {GEO_BREADTH_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="fte">FTE employees</Label>
+                      <Input id="fte" type="number" min={0} value={fteEmployees} onChange={(e) => setFteEmployees(Number(e.target.value))} className="tnum" />
+                      <p className="text-xs text-muted-foreground">
+                        FTE Scope Grade: <span className="font-medium tnum">{result.fteGrade}</span>
+                      </p>
                     </div>
                   </>
                 )}
-
                 {step === 2 && (
                   <>
-                    <StepIntro
-                      title="Business complexity"
-                      body="A diversified conglomerate needs more grades than a single-product business."
-                    />
+                    <Intro title="Diversity/Complexity & Geographic Breadth" body="These two qualitative dimensions combine into one Scope Grade." />
                     <div className="space-y-2">
-                      <Label>Business complexity</Label>
-                      <Select value={complexity} onValueChange={(v) => setComplexity(v as Complexity)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                      <Label>Business Diversity / Complexity</Label>
+                      <Select value={diversityComplexity} onValueChange={(v) => setDiversityComplexity(v as DiversityComplexity)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {COMPLEXITY_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
+                          {DIVERSITY_COMPLEXITY_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{o.label} — {o.description}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="industry">Industry (informational)</Label>
-                      <Input id="industry" value={industry} onChange={(e) => setIndustry(e.target.value)} />
+                      <Label>Geographic Breadth</Label>
+                      <Select value={geographicBreadth} onValueChange={(v) => setGeographicBreadth(v as GeographicBreadth)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {GEOGRAPHIC_BREADTH_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{o.label} — {o.description}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Combined Scope Grade: <span className="font-medium tnum">{result.dcGeoGrade}</span>
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ind">Industry (informational)</Label>
+                      <Input id="ind" value={industry} onChange={(e) => setIndustry(e.target.value)} />
                     </div>
                   </>
                 )}
-
                 {step === 3 && (
                   <div className="space-y-5">
-                    <StepIntro
-                      title="Recommended structure"
-                      body="Based on your inputs, here is the grade range Gradex recommends."
-                    />
+                    <Intro title="Company Grade" body="The average of the three Scope Grades sets the CEO grade and the ceiling for all jobs." />
                     <div className="rounded-lg border border-primary/30 bg-primary/5 p-5">
                       <div className="flex items-center gap-2 text-sm font-medium text-primary">
                         <Sparkles className="size-4" /> Recommendation
                       </div>
                       <p className="mt-2 text-lg">
-                        A{" "}
-                        <strong className="tnum">{result.usedGrades.length}-grade</strong> structure,
-                        grades <strong className="tnum">{result.bottomGrade}–{result.topGrade}</strong>,
-                        with the CEO at grade <strong className="tnum">{result.topGrade}</strong>.
+                        Company Grade <strong className="tnum">{result.companyGrade}</strong> — a{" "}
+                        <strong className="capitalize">{result.businessSize}</strong> business unit. The CEO sits at grade{" "}
+                        <strong className="tnum">{result.companyGrade}</strong>; jobs span grades 1–{result.topGrade}.
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <Stat label="Revenue pts" value={result.breakdown.revenuePoints} />
-                      <Stat label="Headcount pts" value={result.breakdown.headcountPoints} />
-                      <Stat label="Geography pts" value={result.breakdown.geoPoints} />
-                      <Stat label="Complexity pts" value={result.breakdown.complexityPoints} />
+                    <div className="grid grid-cols-3 gap-3">
+                      <Stat label="Revenue" value={result.revenueGrade} />
+                      <Stat label="FTE" value={result.fteGrade} />
+                      <Stat label="Complexity × Geo" value={result.dcGeoGrade} />
                     </div>
                   </div>
                 )}
@@ -205,31 +154,24 @@ export default function ScopingPage() {
             </AnimatePresence>
 
             <div className="mt-8 flex items-center justify-between">
-              <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+              <Button variant="ghost" onClick={() => setStep((x) => Math.max(0, x - 1))} disabled={step === 0}>
                 <ArrowLeft className="size-4" /> Back
               </Button>
               {step < STEPS.length - 1 ? (
-                <Button onClick={() => setStep((s) => s + 1)}>
-                  Next <ArrowRight className="size-4" />
-                </Button>
+                <Button onClick={() => setStep((x) => x + 1)}>Next <ArrowRight className="size-4" /></Button>
               ) : (
-                <Button onClick={onSave}>
-                  <Check className="size-4" /> Save scoping
-                </Button>
+                <Button onClick={onSave}><Check className="size-4" /> Save scoping</Button>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Live preview */}
         <Card className="h-fit lg:sticky lg:top-20">
-          <CardHeader>
-            <CardTitle className="text-base">Live preview</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Live preview</CardTitle></CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-baseline gap-2">
-              <AnimatedNumber value={result.usedGrades.length} className="text-4xl font-semibold tnum" />
-              <span className="text-sm text-muted-foreground">grades used</span>
+              <AnimatedNumber value={result.companyGrade} className="text-4xl font-extrabold tnum" />
+              <span className="text-sm text-muted-foreground">Company Grade</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <Mini label="Bottom" value={result.bottomGrade} />
@@ -237,8 +179,8 @@ export default function ScopingPage() {
               <Mini label="CEO" value={result.ceoGrade} />
             </div>
             <ScaleVisual bottom={result.bottomGrade} top={result.topGrade} ceo={result.ceoGrade} />
-            <p className="text-xs text-muted-foreground">
-              Total size score: <span className="font-medium tnum">{result.breakdown.total}</span> / 18
+            <p className="text-xs text-muted-foreground capitalize">
+              Business size: <span className="font-medium">{result.businessSize}</span>
             </p>
           </CardContent>
         </Card>
@@ -247,7 +189,7 @@ export default function ScopingPage() {
   );
 }
 
-function StepIntro({ title, body }: { title: string; body: string }) {
+function Intro({ title, body }: { title: string; body: string }) {
   return (
     <div>
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -255,7 +197,6 @@ function StepIntro({ title, body }: { title: string; body: string }) {
     </div>
   );
 }
-
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md border border-border p-3 text-center">
@@ -264,7 +205,6 @@ function Stat({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
-
 function Mini({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md bg-muted p-2">

@@ -16,27 +16,25 @@ export const jobStatusSchema = z.enum(["draft", "graded", "needs_review"]);
 export const confidenceSchema = z.enum(["high", "medium", "low"]);
 
 export const scopingInputsSchema = z.object({
-  revenue: z.number().nonnegative(),
-  currency: z.string().min(1),
-  headcount: z.number().int().nonnegative(),
-  geoBreadth: z.enum(["single", "regional", "national", "multinational", "global"]),
-  complexity: z.enum(["single", "few", "multiple", "conglomerate"]),
+  revenueMillions: z.number().nonnegative(),
+  currency: z.string().default("USD"),
+  fteEmployees: z.number().int().nonnegative(),
+  geographicBreadth: z.enum(["domestic", "international", "global"]),
+  diversityComplexity: z.enum(["low", "medium", "high"]),
   industry: z.string().optional(),
 });
 export type ScopingInputsT = z.infer<typeof scopingInputsSchema>;
 
 export const scopingResultSchema = z.object({
+  revenueGrade: z.number().int().min(16).max(25),
+  fteGrade: z.number().int().min(16).max(25),
+  dcGeoGrade: z.number().int().min(16).max(25),
+  companyGrade: z.number().int().min(16).max(25),
+  ceoGrade: z.number().int().min(16).max(25),
   topGrade: z.number().int().min(1).max(25),
   bottomGrade: z.number().int().min(1).max(25),
-  ceoGrade: z.number().int().min(1).max(25),
   usedGrades: z.array(z.number().int()),
-  breakdown: z.object({
-    revenuePoints: z.number(),
-    headcountPoints: z.number(),
-    geoPoints: z.number(),
-    complexityPoints: z.number(),
-    total: z.number(),
-  }),
+  businessSize: z.enum(["small", "medium", "large"]),
 });
 
 export const orgSchema = z.object({

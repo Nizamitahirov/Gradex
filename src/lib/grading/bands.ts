@@ -1,115 +1,106 @@
 /**
- * Banding model — SPEC.md §7.
+ * GGS Step 2 — Bands (WTW GGS 4.2). See docs/GGS_MODEL.md.
  *
- * Bands are broad career tiers. Each maps to a default grade range (of 1–25)
- * that gets intersected with the org's scoped used-grade range to form the
- * "candidate grade window" grading must land within.
- *
- * These ranges are Gradex's own model (see Appendix A).
+ * Bands are produced by the banding decision tree (banding-suggest.ts). Each
+ * band occupies a window of global grades; the window for the upper bands
+ * (4IC, 4M, 5FS, 5BS, CEO) shifts with the Company Grade, while 1, 2, 3IC and
+ * 3M are independent of business-unit size.
  */
 
 export type CareerPath = "IC" | "M";
 
-export type BandKey =
-  | "manual"
-  | "clerical"
-  | "para_professional"
-  | "professional"
-  | "expert"
-  | "supervisory"
-  | "manager"
-  | "senior_manager"
-  | "director"
-  | "executive"
-  | "ceo";
+export type BandKey = "1" | "2" | "3IC" | "4IC" | "3M" | "4M" | "5FS" | "5BS" | "ceo";
 
 export interface BandDef {
   key: BandKey;
+  /** Short code shown in the grid, e.g. "3IC". */
+  code: string;
   name: string;
   path: CareerPath;
-  /** Default typical grade range of 1–25. */
-  range: { lo: number; hi: number };
+  contributesThrough: string;
   description: string;
 }
 
 export const BANDS: BandDef[] = [
   {
-    key: "manual",
-    name: "Manual / Operational",
+    key: "1",
+    code: "1",
+    name: "Manual / Junior Admin",
     path: "IC",
-    range: { lo: 1, hi: 6 },
-    description: "Routine physical or operational tasks; defined procedures.",
+    contributesThrough: "Tasks",
+    description:
+      "Manual workers, messengers, receptionists, operators. Contribute with assistance; little or no previous experience.",
   },
   {
-    key: "clerical",
+    key: "2",
+    code: "2",
     name: "Clerical / Administrative",
     path: "IC",
-    range: { lo: 3, hi: 8 },
-    description: "Administrative & support tasks; established methods.",
+    contributesThrough: "Skills",
+    description:
+      "Clerical, administrative and secretarial staff with little/no supervisory responsibility; skilled technicians/craftsmen.",
   },
   {
-    key: "para_professional",
-    name: "Para-professional / Technical Support",
-    path: "IC",
-    range: { lo: 5, hi: 10 },
-    description: "Applied technical skills; some judgment within guidelines.",
-  },
-  {
-    key: "professional",
+    key: "3IC",
+    code: "3IC",
     name: "Professional",
     path: "IC",
-    range: { lo: 8, hi: 15 },
+    contributesThrough: "Expertise",
     description:
-      "Theoretical/conceptual knowledge of a discipline; solves problems analytically.",
+      "Individual contributors who independently apply professional expertise and judgment within a recognized field.",
   },
   {
-    key: "expert",
-    name: "Expert / Specialist (SME)",
+    key: "4IC",
+    code: "4IC",
+    name: "Subject Matter Expert",
     path: "IC",
-    range: { lo: 13, hi: 20 },
-    description: "Deep authority in a field; advances the discipline; no management duties.",
+    contributesThrough: "Deep expertise",
+    description:
+      "Technical/professional thought leaders with deep expertise and few peers; key to the company for their knowledge.",
   },
   {
-    key: "supervisory",
-    name: "Supervisory / Team Lead",
+    key: "3M",
+    code: "3M",
+    name: "Junior Management / Supervisor",
     path: "M",
-    range: { lo: 9, hi: 13 },
-    description: "Coordinates a team's day-to-day work; first level of people responsibility.",
+    contributesThrough: "Leadership",
+    description:
+      "First-line management and supervisory roles; responsibility for support and/or technical staff is a large part of the job.",
   },
   {
-    key: "manager",
-    name: "Manager",
+    key: "4M",
+    code: "4M",
+    name: "Middle Management",
     path: "M",
-    range: { lo: 12, hi: 17 },
-    description: "Manages a function or team; accountable for results through others.",
+    contributesThrough: "Leadership",
+    description:
+      "Managers below heads of function who deliver through others via operational management of team(s).",
   },
   {
-    key: "senior_manager",
-    name: "Senior / Middle Management",
+    key: "5FS",
+    code: "5FS",
+    name: "Senior Management",
     path: "M",
-    range: { lo: 15, hi: 20 },
-    description: "Manages managers or a sizeable function; sets operational direction.",
+    contributesThrough: "Functional strategy",
+    description:
+      "Executive roles that set or significantly influence organizational functional strategy (not business-unit strategy).",
   },
   {
-    key: "director",
-    name: "Director / Function Head",
+    key: "5BS",
+    code: "5BS",
+    name: "Top Management",
     path: "M",
-    range: { lo: 18, hi: 22 },
-    description: "Leads a major function or business unit; shapes strategy.",
-  },
-  {
-    key: "executive",
-    name: "Executive",
-    path: "M",
-    range: { lo: 21, hi: 24 },
-    description: "Top leadership team; enterprise-level accountability.",
+    contributesThrough: "Business strategy",
+    description:
+      "Executive roles that determine or significantly influence business strategy and contribute through their vision.",
   },
   {
     key: "ceo",
-    name: "CEO / Top Job",
+    code: "CEO",
+    name: "CEO / Business Unit Manager",
     path: "M",
-    range: { lo: 25, hi: 25 },
-    description: "The single top job; anchored by scoping.",
+    contributesThrough: "Business strategy (P&L)",
+    description: "The single top job holding P&L responsibility for the business unit. Anchored by scoping.",
   },
 ];
 
@@ -127,19 +118,60 @@ export function bandsForPath(path: CareerPath): BandDef[] {
   return BANDS.filter((b) => b.path === path);
 }
 
+/** Is band 5FS available for this company grade? (Not offered for small BUs, CEO 16–18.) */
+export function is5FSAvailable(companyGrade: number): boolean {
+  return companyGrade >= 19;
+}
+
 /**
- * The candidate grade window: the band's default range intersected with the
- * org's scoped used-grade range. If the intersection is empty (band sits
- * entirely outside the org scope) we fall back to the org range so grading can
- * still proceed, and callers should treat the mismatch as an anomaly.
+ * Grade window for a band given the Company Grade C (the CEO grade).
+ * Lower bands (1, 2, 3IC, 3M) are fixed; upper bands shift with C. Documented
+ * approximation of the GGS grade maps (exact maps are WTW-proprietary visuals).
+ * Always clamped to [1, C].
+ */
+export function bandGradeWindow(band: BandKey, companyGrade: number): { lo: number; hi: number } {
+  const C = companyGrade;
+  const clamp = (lo: number, hi: number) => {
+    let L = Math.max(1, Math.min(lo, C));
+    const H = Math.max(1, Math.min(hi, C));
+    if (L > H) L = H;
+    return { lo: L, hi: H };
+  };
+
+  switch (band) {
+    case "1":
+      return clamp(1, 4);
+    case "2":
+      return clamp(3, 8);
+    case "3IC":
+      return clamp(7, 12);
+    case "3M":
+      return clamp(8, 12);
+    case "4IC":
+      return clamp(C - 8, C - 4);
+    case "4M":
+      return clamp(C - 7, C - 4);
+    case "5FS":
+      return clamp(C - 4, C - 3);
+    case "5BS":
+      return clamp(C - 2, C - 1);
+    case "ceo":
+      return clamp(C, C);
+  }
+}
+
+/**
+ * Candidate grade window for grading: the band's window for the org's company
+ * grade, intersected with the org's used-grade range.
  */
 export function candidateWindow(
   band: BandKey,
   scoped: { lo: number; hi: number },
+  companyGrade: number,
 ): { lo: number; hi: number } {
-  const r = BAND_MAP[band].range;
-  const lo = Math.max(r.lo, scoped.lo);
-  const hi = Math.min(r.hi, scoped.hi);
-  if (lo > hi) return { ...scoped };
+  const w = bandGradeWindow(band, companyGrade);
+  const lo = Math.max(w.lo, scoped.lo);
+  const hi = Math.min(w.hi, scoped.hi);
+  if (lo > hi) return { ...w };
   return { lo, hi };
 }

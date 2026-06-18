@@ -1,12 +1,9 @@
 /**
- * The seven grading factors — SPEC.md §8 & §9.1.
+ * GGS Step 3 — the seven grading factors (WTW GGS 4.2 §4). See docs/GGS_MODEL.md.
  *
- * Modeled entirely as data (id, name, why-it-matters, ordered levels with
- * label/description/score) so factors, level definitions and the scoring
- * model can be tuned in ONE place without touching components.
- *
- * Level definitions and point values are Gradex's own openly-defined model
- * (Appendix A) — not WTW's proprietary charts.
+ * Each factor is an ordered hierarchy of levels (low → high) following the GGS
+ * factor definitions. A job's selected levels place it within its band's grade
+ * window (see engine.ts). Modeled as data so definitions/scales live in one place.
  */
 
 export type FactorId =
@@ -19,114 +16,114 @@ export type FactorId =
   | "interpersonalSkills";
 
 export interface FactorLevel {
-  /** Ordered index, lowest (0) to highest. */
   index: number;
   label: string;
   description: string;
+  /** Ordinal score (equals index); the engine normalizes by the factor's max. */
   score: number;
 }
 
 export interface FactorDef {
   id: FactorId;
   name: string;
-  /** Plain-language "why this matters" shown in the wizard. */
   why: string;
   levels: FactorLevel[];
 }
 
-const lvl = (
-  index: number,
-  label: string,
-  description: string,
-  score: number,
-): FactorLevel => ({ index, label, description, score });
+const L = (index: number, label: string, description: string): FactorLevel => ({
+  index,
+  label,
+  description,
+  score: index,
+});
 
 export const FACTORS: FactorDef[] = [
   {
     id: "functionalKnowledge",
-    name: "Functional Knowledge",
-    why: "Depth and breadth of technical know-how is the strongest single driver of job size.",
+    name: "Job Functional Knowledge",
+    why: "Knowledge of functional work, from single-step tasks to the theory and practice of a discipline.",
     levels: [
-      lvl(0, "Simple tasks", "Performs basic, repetitive tasks needing little prior knowledge.", 0),
-      lvl(1, "Established procedures", "Applies defined procedures and standard methods within a job.", 3),
-      lvl(2, "Job & practical methods", "Solid working knowledge of practices and methods in a single area.", 6),
-      lvl(3, "Broad concepts of a discipline", "Understands the principles and concepts of a professional discipline.", 10),
-      lvl(4, "Full theory & practice", "Comprehensive command of theory and practice across a discipline.", 14),
-      lvl(5, "Authority across disciplines", "Mastery spanning multiple disciplines; sets technical direction broadly.", 18),
+      L(0, "Specific work tasks", "A limited number of routine, repetitive tasks; little or no training required."),
+      L(1, "Procedures of own job", "Full knowledge of the activities and well-defined procedures of own job."),
+      L(2, "Concepts within a discipline", "Understands processes and the underlying concepts/principles of a discipline."),
+      L(3, "Theory & practice", "Professional-level command of the theory and practice of a discipline."),
+      L(4, "Broad disciplinary authority", "Deep, broad knowledge; recognized authority within a discipline."),
+      L(5, "Multi-discipline mastery", "Mastery spanning multiple disciplines; sets technical direction broadly."),
     ],
   },
   {
     id: "businessExpertise",
     name: "Business Expertise",
-    why: "Bigger jobs require seeing how the business makes money, not just how to do a task.",
+    why: "Knowledge about the business itself, from the work unit through to the industry and commercial environment.",
     levels: [
-      lvl(0, "Own work unit", "Understands how their own immediate work unit operates.", 0),
-      lvl(1, "Own function", "Understands how their function works and contributes.", 2),
-      lvl(2, "Related functions", "Grasps how several related functions interconnect.", 5),
-      lvl(3, "Multiple functions / business model", "Understands the broader business model across functions.", 8),
-      lvl(4, "Industry & market", "Deep grasp of the industry, market dynamics and competition.", 11),
+      L(0, "Own job", "Understanding limited to own tasks; no need to see how the job fits the wider unit."),
+      L(1, "Own team", "Aware of how assigned duties contribute to the work of the immediate team."),
+      L(2, "Area / sub-function", "Understands how the team integrates with others to achieve the area's objectives."),
+      L(3, "Business unit", "Understands the broader business unit and how it operates."),
+      L(4, "Industry & commercial", "Deep grasp of the industry and the commercial environment."),
     ],
   },
   {
     id: "leadership",
     name: "Leadership",
-    why: "Responsibility for others' work materially increases job size and separates the management path.",
+    why: "The nature and breadth of leadership and guidance provided to others (including informal role-modelling).",
     levels: [
-      lvl(0, "None", "No responsibility for the work of others.", 0),
-      lvl(1, "Informal / peer guidance", "Provides informal guidance or training to peers.", 2),
-      lvl(2, "Supervises a small team", "Coordinates the day-to-day work of a small team.", 5),
-      lvl(3, "Manages a team / unit", "Accountable for a team or unit's results through others.", 9),
-      lvl(4, "Manages a function", "Leads a function, typically managing other managers.", 13),
-      lvl(5, "Enterprise leadership", "Leads multiple functions or the enterprise.", 17),
+      L(0, "None", "No supervisory responsibility beyond self-management of own workload."),
+      L(1, "Informal guidance", "Provides on-the-job training/guidance or acts as a role model; no formal authority."),
+      L(2, "Supervise a team", "Coordinates and supervises the day-to-day work of a team."),
+      L(3, "Manage through others", "Full line management of a team, accountable for results through others."),
+      L(4, "Manage a function", "Leads a function, typically managing other managers."),
+      L(5, "Enterprise leadership", "Provides leadership across the business unit or enterprise."),
     ],
   },
   {
     id: "problemSolving",
     name: "Problem Solving",
-    why: "The harder and more ambiguous the thinking required, the bigger the job.",
+    why: "The mental skills required — analysis, judgement, decision-making — and the structure available to rely on.",
     levels: [
-      lvl(0, "Follow clear rules", "Resolves issues by following clear, established rules.", 0),
-      lvl(1, "Choose among known solutions", "Selects the best fit from known, documented solutions.", 3),
-      lvl(2, "Adapt & analyze", "Analyzes situations and adapts approaches to fit.", 6),
-      lvl(3, "Solve novel problems", "Solves new, undefined problems with limited precedent.", 10),
-      lvl(4, "Create new frameworks", "Creates original frameworks, strategy or methodology.", 14),
+      L(0, "Common sense", "Uses common sense to complete routine tasks; simple choices among known things."),
+      L(1, "Defined procedures", "Applies defined procedures and simple judgement in straightforward situations."),
+      L(2, "Analyze & select", "Analyzes factual information and selects appropriate alternatives from defined options."),
+      L(3, "Solve novel problems", "Devises solutions to new problems from first principles with limited precedent."),
+      L(4, "Create frameworks / strategy", "Creates new frameworks, methodologies or strategy."),
     ],
   },
   {
     id: "natureOfImpact",
     name: "Nature of Impact",
-    why: "A job that directly determines results is larger than one that merely supports.",
+    why: "How the job affects the business, from tangential support to primary operational and strategic responsibility.",
     levels: [
-      lvl(0, "Indirect / supporting", "Supports outcomes indirectly through assigned tasks.", 0),
-      lvl(1, "Contributory", "Contributes meaningfully to a shared result.", 2),
-      lvl(2, "Significant / shared", "Has a significant, shared influence on results.", 5),
-      lvl(3, "Primary / determining", "Primarily determines outcomes in their area.", 8),
-      lvl(4, "Defines enterprise outcomes", "Decisions define enterprise-level outcomes.", 11),
+      L(0, "Minimal / indirect", "Very limited or indirect impact on results."),
+      L(1, "Accuracy of tasks", "Small but direct impact through the accuracy of the tasks performed."),
+      L(2, "Quality of input", "Meaningful impact through the quality and influence of the work."),
+      L(3, "Shared accountability", "Significant, shared accountability for operational results."),
+      L(4, "Primary / strategic", "Primary operational and strategic responsibility for results."),
     ],
   },
   {
     id: "areaOfImpact",
     name: "Area of Impact",
-    why: "Breadth of impact scales job size with organizational reach.",
+    why: "Where the impact is felt across organizational entities, from own job to the whole enterprise or market.",
     levels: [
-      lvl(0, "Own role / task", "Impact is confined to the job's own tasks.", 0),
-      lvl(1, "Team", "Impact felt across the immediate team.", 2),
-      lvl(2, "Department / function", "Impact spans a department or function.", 4),
-      lvl(3, "Business unit", "Impact reaches across a business unit.", 7),
-      lvl(4, "Whole organization", "Impact felt across the whole organization.", 10),
-      lvl(5, "External / market", "Impact extends to external markets and stakeholders.", 13),
+      L(0, "Own job", "Impact restricted to the work of the job itself."),
+      L(1, "Own team", "Impact felt across the immediate team."),
+      L(2, "Area / sub-function", "Impact spans an area or sub-function."),
+      L(3, "Function", "Impact reaches across an organizational function."),
+      L(4, "Business unit", "Impact felt across the business unit."),
+      L(5, "Enterprise / external", "Impact extends across the enterprise and to external markets."),
     ],
   },
   {
     id: "interpersonalSkills",
     name: "Interpersonal Skills",
-    why: "The higher the stakes of the relationships a job manages, the bigger it is.",
+    why: "The level and type of people skills required on an ongoing basis to perform the role.",
     levels: [
-      lvl(0, "Exchange information", "Basic, courteous exchange of routine information.", 0),
-      lvl(1, "Explain / advise", "Explains concepts and advises others.", 2),
-      lvl(2, "Persuade / negotiate", "Persuades and negotiates to reach outcomes.", 4),
-      lvl(3, "Influence senior stakeholders", "Influences senior internal stakeholders on key matters.", 6),
-      lvl(4, "Shape external relationships", "Shapes strategic external and high-stakes relationships.", 8),
+      L(0, "Common courtesy", "Clear verbal communication and ordinary/common courtesy."),
+      L(1, "Exchange information", "Routine exchange of information with others."),
+      L(2, "Advise / explain", "Explains concepts and advises others."),
+      L(3, "Persuade / negotiate", "Persuades and negotiates to reach outcomes."),
+      L(4, "Influence stakeholders", "Influences senior internal stakeholders on important matters."),
+      L(5, "Shape strategic relationships", "Shapes strategic and high-stakes external relationships."),
     ],
   },
 ];
@@ -137,7 +134,6 @@ export const FACTOR_MAP: Record<FactorId, FactorDef> = Object.fromEntries(
   FACTORS.map((f) => [f.id, f]),
 ) as Record<FactorId, FactorDef>;
 
-/** Default per-factor weights (all 1.0). Per-org overrides allowed later. */
 export const DEFAULT_WEIGHTS: Record<FactorId, number> = {
   functionalKnowledge: 1,
   businessExpertise: 1,
