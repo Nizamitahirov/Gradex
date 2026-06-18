@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const { username, password } = await req.json();
     if (!username || !password) {
       return NextResponse.json(
-        { success: false, error: "İstifadəçi adı və şifrə tələb olunur" },
+        { success: false, error: "Username and password are required" },
         { status: 400 },
       );
     }
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     if (snap.empty) {
       return NextResponse.json(
-        { success: false, error: "İstifadəçi adı və ya şifrə yanlışdır" },
+        { success: false, error: "Invalid username or password" },
         { status: 401 },
       );
     }
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const ok = data.passwordHash && (await bcrypt.compare(password, data.passwordHash));
     if (!ok) {
       return NextResponse.json(
-        { success: false, error: "İstifadəçi adı və ya şifrə yanlışdır" },
+        { success: false, error: "Invalid username or password" },
         { status: 401 },
       );
     }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     res.cookies.set(AUTH_COOKIE, token, COOKIE_OPTIONS);
     return res;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Bilinməyən xəta";
+    const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

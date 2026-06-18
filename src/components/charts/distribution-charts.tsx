@@ -131,7 +131,7 @@ function AvgTooltip({ active, payload, label }: TooltipProps) {
   return (
     <div className="rounded-md border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <div className="font-medium">{label}</div>
-      <div className="text-muted-foreground tnum">Orta qrade {payload[0].value}</div>
+      <div className="text-muted-foreground tnum">Avg grade {payload[0].value}</div>
     </div>
   );
 }
@@ -174,9 +174,9 @@ export function FamilyComparisonChart({ jobs, families }: { jobs: Job[]; familie
 }
 
 const CONFIDENCE_META = [
-  { key: "high", label: "Yüksək", color: "var(--success)" },
-  { key: "medium", label: "Orta", color: "#F5A524" },
-  { key: "low", label: "Aşağı", color: "var(--destructive)" },
+  { key: "high", label: "High", color: "var(--success)" },
+  { key: "medium", label: "Medium", color: "#F5A524" },
+  { key: "low", label: "Low", color: "var(--destructive)" },
 ] as const;
 
 export function ConfidenceDonut({ jobs }: { jobs: Job[] }) {

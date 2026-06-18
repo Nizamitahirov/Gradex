@@ -17,11 +17,12 @@ import {
   Users,
   BarChart3,
 } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
 import { useAuth } from "@/contexts/auth-context";
+import { useOrgData } from "@/hooks/use-org-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
 import { GradeBadge } from "@/components/grade-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { StatSparkCard } from "@/components/dashboard/stat-spark-card";
@@ -33,7 +34,6 @@ import {
   FamilyComparisonChart,
   ConfidenceDonut,
 } from "@/components/charts/distribution-charts";
-import { getBand } from "@/lib/grading/bands";
 import { formatTimeAgo } from "@/lib/time";
 
 /** Cumulative count series from timestamps, for sparklines. */
@@ -84,35 +84,49 @@ function gradientFor(seed: string): string {
 }
 
 export default function DashboardPage() {
-  const org = useAppStore((s) => s.orgs.find((o) => o.id === s.currentOrgId));
-  const jobs = useAppStore((s) => s.jobs);
-  const families = useAppStore((s) => s.families);
-  const evaluations = useAppStore((s) => s.evaluations);
-  const activity = useAppStore((s) => s.activity);
   const { user } = useAuth();
+  const { data, isLoading, isError, error } = useOrgData();
 
-  if (!org) return null;
+  if (isLoading) return <DashboardSkeleton />;
+
+  if (isError) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Couldn't load data"
+        description={error instanceof Error ? error.message : "Please try again."}
+      />
+    );
+  }
+
+  if (!data || !data.org) {
+    return (
+      <EmptyState
+        icon={Briefcase}
+        title="No organization data yet"
+        description="Your Firestore project has no organization. Seed it or create one to get started."
+      />
+    );
+  }
+
+  const { org, jobs, families, evaluations, activity } = data;
 
   const scoped = org.scoping?.completed
     ? { lo: org.scoping.result.bottomGrade, hi: org.scoping.result.topGrade }
     : { lo: 1, hi: 25 };
 
   const graded = jobs.filter((j) => j.currentGrade != null);
-  const flagged = jobs.filter((j) => j.status === "needs_review" || j.flags.length > 0);
+  const flagged = jobs.filter((j) => j.status === "needs_review" || (j.flags?.length ?? 0) > 0);
   const grades = graded.map((j) => j.currentGrade!) as number[];
   const avgGrade = grades.length ? Math.round((grades.reduce((a, b) => a + b, 0) / grades.length) * 10) / 10 : 0;
   const maxGrade = grades.length ? Math.max(...grades) : 0;
   const pctGraded = jobs.length ? Math.round((graded.length / jobs.length) * 100) : 0;
-  const icCount = jobs.filter((j) => j.careerPath === "IC").length;
-  const mCount = jobs.filter((j) => j.careerPath === "M").length;
 
-  // Today
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayGraded = evaluations.filter((e) => e.gradedAt >= todayStart.getTime()).length;
   const weekGraded = evaluations.filter((e) => e.gradedAt >= todayStart.getTime() - 7 * 864e5).length;
 
-  // Sparklines (real timestamps)
   const jobsSpark = cumulativeSeries(jobs.map((j) => j.createdAt));
   const gradedSpark = cumulativeSeries(evaluations.map((e) => e.gradedAt));
   const familiesSpark = cumulativeSeries(families.map((f) => f.createdAt));
@@ -121,7 +135,7 @@ export default function DashboardPage() {
   const maxSpark = aggSeries(evaluations.map((e) => ({ t: e.gradedAt, v: e.finalGrade })), 8, "max");
 
   const hour = new Date().getHours();
-  const greeting = hour < 5 ? "Gecə xeyir" : hour < 12 ? "Sabahın xeyir" : hour < 18 ? "Salam" : "Axşamın xeyir";
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = (user?.displayName ?? "").split(" ")[0] || "";
 
   const familyStats = families
@@ -147,42 +161,47 @@ export default function DashboardPage() {
               {greeting}{firstName ? `, ${firstName}` : ""} 👋
             </p>
             <h1 className="mt-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">
-              Bu gün{" "}
-              <span
-                style={{
-                  background: "linear-gradient(90deg, #FFD466, #FF8FB1)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                {todayGraded}
-              </span>{" "}
-              iş qiymətləndirildi.
+              {todayGraded > 0 ? (
+                <>
+                  <span
+                    style={{
+                      background: "linear-gradient(90deg, #FFD466, #FF8FB1)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    {todayGraded}
+                  </span>{" "}
+                  {todayGraded === 1 ? "job graded" : "jobs graded"} today.
+                </>
+              ) : (
+                <>{org.name} job architecture.</>
+              )}
             </h1>
             <p className="mt-2 text-sm text-white/80">
-              {families.length} ailə · {graded.length} iş qiymətləndirilib
+              {families.length} families · {graded.length} jobs graded
               {flagged.length > 0
-                ? ` · ${flagged.length} iş yoxlama tələb edir.`
+                ? ` · ${flagged.length} need review.`
                 : weekGraded > 0
-                  ? ` · bu həftə ${weekGraded} qiymətləndirmə.`
+                  ? ` · ${weekGraded} graded this week.`
                   : "."}
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild variant="secondary" className="bg-white text-primary hover:bg-white/90 shadow-none">
                 <Link href="/jobs/new">
-                  <Plus className="size-4" /> Yeni iş
+                  <Plus className="size-4" /> Add job
                 </Link>
               </Button>
               <Button asChild variant="secondary" className="border border-white/30 bg-white/10 text-white hover:bg-white/20 shadow-none">
                 <Link href="/structure">
-                  <Grid3x3 className="size-4" /> Struktur
+                  <Grid3x3 className="size-4" /> Structure
                 </Link>
               </Button>
             </div>
           </div>
           <div className="flex gap-3">
-            <HeroStat icon={TrendingUp} value={`${pctGraded}%`} label="Qiymətləndirmə" />
-            <HeroStat icon={AlertTriangle} value={flagged.length} label="Yoxlama tələb edir" />
+            <HeroStat icon={TrendingUp} value={`${pctGraded}%`} label="Graded" />
+            <HeroStat icon={AlertTriangle} value={flagged.length} label="Need review" />
           </div>
         </div>
       </div>
@@ -196,12 +215,12 @@ export default function DashboardPage() {
                 <Target className="size-5" />
               </div>
               <div>
-                <h3 className="font-semibold">Başlamaq üçün scoping-i tamamlayın</h3>
-                <p className="text-sm text-muted-foreground">Qiymətlər təşkilatın ölçüsünə görə kalibrlənir.</p>
+                <h3 className="font-semibold">Complete scoping to get started</h3>
+                <p className="text-sm text-muted-foreground">Grades are calibrated to your organization&apos;s size.</p>
               </div>
             </div>
             <Button asChild>
-              <Link href="/scoping">Scoping-ə keç <ArrowRight className="size-4" /></Link>
+              <Link href="/scoping">Start scoping <ArrowRight className="size-4" /></Link>
             </Button>
           </CardContent>
         </Card>
@@ -209,12 +228,12 @@ export default function DashboardPage() {
 
       {/* STAT SPARK CARDS */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <StatSparkCard icon={Briefcase} accent="indigo" label="Ümumi işlər" value={jobs.length} points={jobsSpark} delta={`+${jobs.length}`} />
-        <StatSparkCard icon={CheckCircle2} accent="pink" label="Qiymətləndirilib" value={graded.length} total={jobs.length} points={gradedSpark} delta={`${pctGraded}%`} />
-        <StatSparkCard icon={Gauge} accent="info" label="Orta qrade" value={avgGrade || "—"} points={avgSpark} delta={`${scoped.lo}–${scoped.hi}`} />
-        <StatSparkCard icon={Crown} accent="success" label="Ən yüksək qrade" value={maxGrade || "—"} points={maxSpark} delta={`CEO ${scoped.hi}`} />
-        <StatSparkCard icon={FolderTree} accent="cyan" label="Ailələr" value={families.length} points={familiesSpark} delta={`+${families.length}`} />
-        <StatSparkCard icon={AlertTriangle} accent="warn" label="Yoxlama" value={flagged.length} total={jobs.length} points={reviewSpark} delta={flagged.length ? `${flagged.length}` : "0"} deltaDir={flagged.length ? "down" : "up"} />
+        <StatSparkCard icon={Briefcase} accent="indigo" label="Total jobs" value={jobs.length} points={jobsSpark} delta={`+${jobs.length}`} />
+        <StatSparkCard icon={CheckCircle2} accent="pink" label="Graded" value={graded.length} total={jobs.length} points={gradedSpark} delta={`${pctGraded}%`} />
+        <StatSparkCard icon={Gauge} accent="info" label="Average grade" value={avgGrade || "—"} points={avgSpark} delta={`${scoped.lo}–${scoped.hi}`} />
+        <StatSparkCard icon={Crown} accent="success" label="Highest grade" value={maxGrade || "—"} points={maxSpark} delta={`CEO ${scoped.hi}`} />
+        <StatSparkCard icon={FolderTree} accent="cyan" label="Families" value={families.length} points={familiesSpark} delta={`+${families.length}`} />
+        <StatSparkCard icon={AlertTriangle} accent="warn" label="Need review" value={flagged.length} total={jobs.length} points={reviewSpark} delta={flagged.length ? `${flagged.length}` : "0"} deltaDir={flagged.length ? "down" : "up"} />
       </div>
 
       {/* Families list + completion ring */}
@@ -225,15 +244,15 @@ export default function DashboardPage() {
               <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <FolderTree className="size-4" />
               </span>
-              İş ailələri
+              Job families
             </CardTitle>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/families">Hamısını gör <ArrowRight className="size-4" /></Link>
+              <Link href="/families">View all <ArrowRight className="size-4" /></Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             {familyStats.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">Hələ ailə yoxdur.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No families yet.</p>
             )}
             {familyStats.map(({ family, count, avg, min, max }) => (
               <Link
@@ -250,7 +269,7 @@ export default function DashboardPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{family.name}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground tnum">{count} iş</span>
+                    <span className="shrink-0 text-xs text-muted-foreground tnum">{count} jobs</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -260,7 +279,7 @@ export default function DashboardPage() {
                       />
                     </div>
                     <span className="shrink-0 text-xs font-medium text-muted-foreground tnum">
-                      orta {avg || "—"}
+                      avg {avg || "—"}
                     </span>
                   </div>
                 </div>
@@ -278,15 +297,15 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Qiymətləndirmə vəziyyəti</CardTitle>
+            <CardTitle className="text-base">Grading progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <CompletionRing percent={pctGraded} label="qiymətləndirilib" />
+            <CompletionRing percent={pctGraded} label="graded" />
             <div className="mt-4 border-t border-border pt-3">
-              <LegendRow color="var(--success)" label="Qiymətləndirilib" value={graded.length} />
-              <LegendRow color="#F5A524" label="Yoxlama tələb edir" value={flagged.length} />
-              <LegendRow color="var(--muted-foreground)" label="Qaralama" value={jobs.filter((j) => j.status === "draft").length} />
-              <LegendRow color="var(--primary)" label="Ümumi işlər" value={jobs.length} />
+              <LegendRow color="var(--success)" label="Graded" value={graded.length} />
+              <LegendRow color="#F5A524" label="Need review" value={flagged.length} />
+              <LegendRow color="var(--muted-foreground)" label="Draft" value={jobs.filter((j) => j.status === "draft").length} />
+              <LegendRow color="var(--primary)" label="Total jobs" value={jobs.length} />
             </div>
           </CardContent>
         </Card>
@@ -294,23 +313,23 @@ export default function DashboardPage() {
 
       {/* Charts row 1 */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard icon={BarChart3} title="Qrade paylanması">
+        <ChartCard icon={BarChart3} title="Grade distribution">
           {graded.length ? <GradeDistributionChart jobs={graded} range={scoped} /> : <EmptyChart />}
         </ChartCard>
-        <ChartCard icon={Grid3x3} title="Bantlar üzrə işlər">
+        <ChartCard icon={Grid3x3} title="Jobs by band">
           {jobs.length ? <BandDistributionChart jobs={jobs} /> : <EmptyChart />}
         </ChartCard>
       </div>
 
       {/* Charts row 2 */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard icon={Users} title="Karyera yolu (IC / M)">
+        <ChartCard icon={Users} title="Career path (IC / M)">
           <PathSplitDonut jobs={jobs} />
         </ChartCard>
-        <ChartCard icon={Gauge} title="Etibarlılıq səviyyəsi">
+        <ChartCard icon={Gauge} title="Confidence level">
           <ConfidenceDonut jobs={graded} />
         </ChartCard>
-        <ChartCard icon={FolderTree} title="Ailələr üzrə orta qrade">
+        <ChartCard icon={FolderTree} title="Average grade by family">
           {graded.length ? <FamilyComparisonChart jobs={jobs} families={families} /> : <EmptyChart />}
         </ChartCard>
       </div>
@@ -323,7 +342,7 @@ export default function DashboardPage() {
               <span className="flex size-7 items-center justify-center rounded-lg bg-success/12 text-success">
                 <TrendingUp className="size-4" />
               </span>
-              Son aktivlik
+              Recent activity
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -341,19 +360,19 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
-            {activity.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Hələ aktivlik yoxdur.</p>}
+            {activity.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No activity yet.</p>}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-warning" /> Yoxlanılacaqlar
+              <AlertTriangle className="size-4 text-warning" /> Needs review
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {flagged.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">Anomaliya yoxdur 🎉</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No anomalies 🎉</p>
             )}
             {flagged.map((j) => (
               <Link
@@ -404,5 +423,26 @@ function ChartCard({ icon: Icon, title, children }: { icon: typeof BarChart3; ti
 }
 
 function EmptyChart() {
-  return <p className="py-16 text-center text-sm text-muted-foreground">Hələ məlumat yoxdur.</p>;
+  return <p className="py-16 text-center text-sm text-muted-foreground">No data yet.</p>;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-40 w-full rounded-2xl" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-36 rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-2xl" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-72 rounded-2xl" />
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+    </div>
+  );
 }

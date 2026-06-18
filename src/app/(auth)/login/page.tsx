@@ -52,7 +52,7 @@ export default function LoginPage() {
     const result = await login(username, password);
     setLoading(false);
     if (result.success) router.replace("/dashboard");
-    else setError(result.error || "Giriş zamanı xəta baş verdi");
+    else setError(result.error || "Sign-in failed");
   };
 
   if (authLoading) {
@@ -93,23 +93,23 @@ export default function LoginPage() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 32 }}>
               <GradexMark className="mb-3.5" style={{ width: 52, height: 52 }} />
               <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--foreground)", letterSpacing: "-0.03em", margin: 0 }}>Gradex</h1>
-              <p style={{ color: "var(--muted-foreground)", fontSize: 13, marginTop: 4 }}>İş Səviyyələndirmə Platforması</p>
+              <p style={{ color: "var(--muted-foreground)", fontSize: 13, marginTop: 4 }}>Job Leveling Platform</p>
             </div>
 
             <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
-                <label style={LABEL_STYLE}>İstifadəçi adı</label>
+                <label style={LABEL_STYLE}>Username</label>
                 <div style={{ position: "relative" }}>
                   <User size={15} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--muted-foreground)", pointerEvents: "none" }} />
-                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="İstifadəçi adınızı daxil edin" required autoComplete="username" autoFocus className="login-input" style={INPUT_STYLE} />
+                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your username" required autoComplete="username" autoFocus className="login-input" style={INPUT_STYLE} />
                 </div>
               </div>
 
               <div>
-                <label style={LABEL_STYLE}>Şifrə</label>
+                <label style={LABEL_STYLE}>Password</label>
                 <div style={{ position: "relative" }}>
                   <Lock size={15} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--muted-foreground)", pointerEvents: "none" }} />
-                  <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Şifrənizi daxil edin" required autoComplete="current-password" className="login-input" style={{ ...INPUT_STYLE, paddingRight: 44 }} />
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required autoComplete="current-password" className="login-input" style={{ ...INPUT_STYLE, paddingRight: 44 }} />
                   <button type="button" onClick={() => setShowPassword((v) => !v)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 4, borderRadius: 6, display: "flex", alignItems: "center" }}>
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -141,9 +141,9 @@ export default function LoginPage() {
               >
                 {loading ? (
                   <>
-                    <Loader2 size={15} style={{ animation: "spin .8s linear infinite" }} /> Giriş edilir...
+                    <Loader2 size={15} style={{ animation: "spin .8s linear infinite" }} /> Signing in...
                   </>
-                ) : ("Daxil ol")}
+                ) : ("Sign in")}
               </button>
             </form>
           </div>

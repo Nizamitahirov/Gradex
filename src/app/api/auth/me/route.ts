@@ -9,20 +9,20 @@ export async function GET(req: NextRequest) {
   try {
     const token = req.cookies.get(AUTH_COOKIE)?.value;
     if (!token) {
-      return NextResponse.json({ success: false, error: "Giriş edilməyib" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Not signed in" }, { status: 401 });
     }
     const payload = verifyToken(token);
     if (!payload) {
-      return NextResponse.json({ success: false, error: "Token etibarsızdır" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Invalid token" }, { status: 401 });
     }
 
     const doc = await getAdminDb().collection("users").doc(payload.userId).get();
     if (!doc.exists) {
-      return NextResponse.json({ success: false, error: "İstifadəçi tapılmadı" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
     const data = doc.data()!;
     if (!data.isActive) {
-      return NextResponse.json({ success: false, error: "Hesab deaktivdir" }, { status: 403 });
+      return NextResponse.json({ success: false, error: "Account is disabled" }, { status: 403 });
     }
 
     return NextResponse.json({
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Bilinməyən xəta";
+    const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
