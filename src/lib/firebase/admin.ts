@@ -14,18 +14,46 @@ import { getApps, initializeApp, cert, getApp, type App } from "firebase-admin/a
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-// Stored with literal \n which we restore to real newlines.
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+interface ServiceAccount {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+}
 
-export const adminEnabled = Boolean(projectId && clientEmail && privateKey);
+/**
+ * Resolve service-account credentials from env. Supports either:
+ *  - FIREBASE_SERVICE_ACCOUNT_BASE64 (base64 of the full service account JSON), or
+ *  - FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY.
+ */
+function resolveServiceAccount(): ServiceAccount | null {
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (b64) {
+    try {
+      const json = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+      if (json.project_id && json.client_email && json.private_key) {
+        return {
+          projectId: json.project_id,
+          clientEmail: json.client_email,
+          privateKey: String(json.private_key).replace(/\\n/g, "\n"),
+        };
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (projectId && clientEmail && privateKey) return { projectId, clientEmail, privateKey };
+  return null;
+}
+
+const serviceAccount = resolveServiceAccount();
+export const adminEnabled = serviceAccount !== null;
 
 let adminApp: App | null = null;
-if (adminEnabled) {
-  adminApp = getApps().length
-    ? getApp()
-    : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+if (serviceAccount) {
+  adminApp = getApps().length ? getApp() : initializeApp({ credential: cert(serviceAccount) });
 }
 
 export function getAdminAuth() {

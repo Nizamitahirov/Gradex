@@ -2,10 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Check, ChevronsUpDown, LogOut, Search, User, Building2, RotateCcw } from "lucide-react";
 import { useAppStore } from "@/stores/app-store";
-import { DEMO_USER } from "@/lib/demo/seed";
+import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,8 +24,11 @@ export function Topbar() {
   const currentOrgId = useAppStore((s) => s.currentOrgId);
   const setCurrentOrg = useAppStore((s) => s.setCurrentOrg);
   const resetDemo = useAppStore((s) => s.resetDemo);
-  const router = useRouter();
+  const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = React.useState(false);
+
+  const displayName = user?.displayName ?? "User";
+  const userEmail = user?.email ?? user?.username ?? "";
 
   const currentOrg = orgs.find((o) => o.id === currentOrgId);
 
@@ -86,14 +88,14 @@ export function Topbar() {
         <DropdownMenuTrigger asChild>
           <button className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="User menu">
             <Avatar className="size-8">
-              <AvatarFallback>{initials(DEMO_USER.displayName)}</AvatarFallback>
+              <AvatarFallback>{initials(displayName)}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>
-            <div className="font-medium">{DEMO_USER.displayName}</div>
-            <div className="text-xs font-normal text-muted-foreground">{DEMO_USER.email}</div>
+            <div className="font-medium">{displayName}</div>
+            <div className="text-xs font-normal text-muted-foreground">{userEmail}</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
@@ -105,7 +107,7 @@ export function Topbar() {
             <RotateCcw className="size-4" /> Reset demo data
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push("/")}>
+          <DropdownMenuItem onClick={() => logout()}>
             <LogOut className="size-4" /> Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
