@@ -136,7 +136,15 @@ export function buildSeed(now = Date.now()): SeededData {
     });
     const jobId = `job-${i}`;
     const evalId = `eval-${i}`;
-    const gradedAt = now - 1000 * 60 * 60 * (SPECS.length - i);
+    // Spread grading realistically over the past ~3 months: a couple today,
+    // a few this week, the rest across prior weeks/months (so dashboard
+    // "today / this week" counts look genuine, not crammed into one day).
+    const k = SPECS.length - 1 - i; // 0 = most recent
+    const DAY = 1000 * 60 * 60 * 24;
+    let gradedAt: number;
+    if (k < 2) gradedAt = now - (k * 5 + 2) * 60 * 60 * 1000; // today, a few hours apart
+    else if (k < 6) gradedAt = now - (k + 1) * DAY; // earlier this week
+    else gradedAt = now - (10 + (k - 6) * 7) * DAY; // weeks/months back
     const status = res.anomaly ? "needs_review" : "graded";
 
     evaluations.push({
