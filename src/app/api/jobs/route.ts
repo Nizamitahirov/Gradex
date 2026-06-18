@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
       careerPath: body.careerPath ?? "IC",
       band: body.band ?? "3IC",
       description: String(body.description ?? ""),
+      jobPurpose: String(body.jobPurpose ?? ""),
+      jd: String(body.jd ?? ""),
       reportsToJobId: body.reportsToJobId ?? null,
       currentGrade: null,
       currentEvaluationId: null,

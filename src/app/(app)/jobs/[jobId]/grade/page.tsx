@@ -18,6 +18,7 @@ import { WizardProgress } from "@/components/wizard/wizard-progress";
 import { AnimatedNumber } from "@/components/animated-number";
 import { GradeBadge } from "@/components/grade-badge";
 import { GradeExplainer } from "@/components/grade-explainer";
+import { JDAssistant } from "@/components/ai/jd-assistant";
 import { cn } from "@/lib/utils";
 import {
   FACTORS,
@@ -63,6 +64,8 @@ interface DraftState {
   bandTouched: boolean;
   selections: FactorSelections;
   note: string;
+  jobPurpose: string;
+  jd: string;
   step: number;
 }
 
@@ -82,6 +85,8 @@ export default function GradeWizardPage() {
     bandTouched: false,
     selections: {},
     note: "",
+    jobPurpose: "",
+    jd: "",
     step: 0,
   });
 
@@ -160,6 +165,8 @@ export default function GradeWizardPage() {
           note: d.note || undefined,
           careerPath,
           band: effectiveBand,
+          jd: d.jd || undefined,
+          jobPurpose: d.jobPurpose || undefined,
         },
       });
       localStorage.removeItem(draftKey);
@@ -322,6 +329,23 @@ export default function GradeWizardPage() {
                         You still have {FACTORS.length - answeredCount} factor{FACTORS.length - answeredCount > 1 ? "s" : ""} to answer.
                       </div>
                     )}
+                    <JDAssistant
+                      context={{
+                        title: job.title,
+                        family: data?.families.find((f) => f.id === job.familyId)?.name,
+                        band: `${getBand(effectiveBand).code} ${getBand(effectiveBand).name}`,
+                        careerPath: careerPath === "M" ? "Management" : "Individual Contributor",
+                        factorSummary: result.breakdown
+                          .filter((b) => b.levelIndex >= 0)
+                          .map((b) => `${b.name}: ${b.levelLabel}`)
+                          .join("; "),
+                        company: org?.name,
+                      }}
+                      jobPurpose={d.jobPurpose}
+                      setJobPurpose={(v) => set({ jobPurpose: v })}
+                      jd={d.jd}
+                      setJd={(v) => set({ jd: v })}
+                    />
                     <div className="space-y-2">
                       <Label htmlFor="note">Rationale note (optional)</Label>
                       <Textarea id="note" value={d.note} onChange={(e) => set({ note: e.target.value })} placeholder="Why this grade? Good practice for audit." />

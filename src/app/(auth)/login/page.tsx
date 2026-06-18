@@ -149,7 +149,7 @@ export default function LoginPage() {
           </div>
 
           <p style={{ textAlign: "center", color: "var(--muted-foreground)", fontSize: 11, marginTop: 16 }}>
-            © 2026 Gradex — Job leveling platform. Created by Nizami Tahir
+            © 2026 Gradex — Job leveling platform. Created for Orkhan Javadli
           </p>
         </div>
       </div>
