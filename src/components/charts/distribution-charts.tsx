@@ -88,42 +88,92 @@ export function BandDistributionChart({ jobs }: { jobs: Job[] }) {
   );
 }
 
-export function PathSplitDonut({ jobs }: { jobs: Job[] }) {
-  const data = React.useMemo(() => {
-    const ic = jobs.filter((j) => j.careerPath === "IC").length;
-    const m = jobs.filter((j) => j.careerPath === "M").length;
-    return [
-      { name: "Individual Contributor", value: ic, fill: "var(--info)" },
-      { name: "Management", value: m, fill: "var(--primary)" },
-    ];
-  }, [jobs]);
+interface DonutDatum {
+  name: string;
+  value: number;
+  fill: string;
+}
 
+/** Professional donut: rounded segments, hover lift, centered total, rich legend. */
+function Donut({ data, centerLabel }: { data: DonutDatum[]; centerLabel: string }) {
+  const [active, setActive] = React.useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
+  const empty = total === 0;
+  const display = empty ? [{ name: "No data", value: 1, fill: "var(--muted)" }] : data;
 
   return (
-    <div className="flex items-center gap-6">
-      <ResponsiveContainer width={140} height={140}>
-        <PieChart>
-          <Pie data={data} dataKey="value" innerRadius={42} outerRadius={64} paddingAngle={2} stroke="none">
-            {data.map((d, i) => (
-              <Cell key={i} fill={d.fill} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="space-y-2">
-        {data.map((d) => (
-          <div key={d.name} className="flex items-center gap-2 text-sm">
-            <span className="size-2.5 rounded-full" style={{ background: d.fill }} />
-            <span className="text-muted-foreground">{d.name}</span>
-            <span className="font-medium tnum">
-              {d.value} ({total ? Math.round((d.value / total) * 100) : 0}%)
-            </span>
-          </div>
-        ))}
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-7">
+      <div className="relative shrink-0" style={{ width: 168, height: 168 }}>
+        <ResponsiveContainer width={168} height={168}>
+          <PieChart>
+            <Pie
+              data={display}
+              dataKey="value"
+              innerRadius={56}
+              outerRadius={78}
+              paddingAngle={empty ? 0 : 3}
+              cornerRadius={6}
+              stroke="var(--card)"
+              strokeWidth={3}
+              startAngle={90}
+              endAngle={-270}
+              isAnimationActive
+              onMouseEnter={(_, i) => setActive(i)}
+              onMouseLeave={() => setActive(null)}
+            >
+              {display.map((d, i) => (
+                <Cell
+                  key={i}
+                  fill={d.fill}
+                  fillOpacity={active === null || active === i ? 1 : 0.32}
+                  style={{ transition: "fill-opacity 0.15s", cursor: "pointer" }}
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-extrabold tracking-tight tnum">
+            {active !== null && !empty ? data[active].value : total}
+          </span>
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {active !== null && !empty ? data[active].name : centerLabel}
+          </span>
+        </div>
+      </div>
+
+      <div className="w-full flex-1 space-y-1.5">
+        {data.map((d, i) => {
+          const pct = total ? Math.round((d.value / total) * 100) : 0;
+          return (
+            <button
+              key={d.name}
+              type="button"
+              onMouseEnter={() => setActive(i)}
+              onMouseLeave={() => setActive(null)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+            >
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: d.fill }} />
+              <span className="flex-1 truncate text-sm text-muted-foreground">{d.name}</span>
+              <span className="text-sm font-bold tnum">{d.value}</span>
+              <span className="w-9 text-right text-xs text-muted-foreground tnum">{pct}%</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+export function PathSplitDonut({ jobs }: { jobs: Job[] }) {
+  const data = React.useMemo<DonutDatum[]>(
+    () => [
+      { name: "Individual Contributor", value: jobs.filter((j) => j.careerPath === "IC").length, fill: "var(--info)" },
+      { name: "Management", value: jobs.filter((j) => j.careerPath === "M").length, fill: "var(--primary)" },
+    ],
+    [jobs],
+  );
+  return <Donut data={data} centerLabel="jobs" />;
 }
 
 function AvgTooltip({ active, payload, label }: TooltipProps) {
@@ -180,37 +230,14 @@ const CONFIDENCE_META = [
 ] as const;
 
 export function ConfidenceDonut({ jobs }: { jobs: Job[] }) {
-  const data = React.useMemo(() => {
-    return CONFIDENCE_META.map((m) => ({
-      name: m.label,
-      value: jobs.filter((j) => j.confidence === m.key).length,
-      fill: m.color,
-    }));
-  }, [jobs]);
-  const total = data.reduce((s, d) => s + d.value, 0);
-
-  return (
-    <div className="flex items-center gap-6">
-      <ResponsiveContainer width={140} height={140}>
-        <PieChart>
-          <Pie data={data} dataKey="value" innerRadius={42} outerRadius={64} paddingAngle={2} stroke="none">
-            {data.map((d, i) => (
-              <Cell key={i} fill={d.fill} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="space-y-2">
-        {data.map((d) => (
-          <div key={d.name} className="flex items-center gap-2 text-sm">
-            <span className="size-2.5 rounded-full" style={{ background: d.fill }} />
-            <span className="text-muted-foreground">{d.name}</span>
-            <span className="font-bold tnum">
-              {d.value} ({total ? Math.round((d.value / total) * 100) : 0}%)
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
+  const data = React.useMemo<DonutDatum[]>(
+    () =>
+      CONFIDENCE_META.map((m) => ({
+        name: m.label,
+        value: jobs.filter((j) => j.confidence === m.key).length,
+        fill: m.color,
+      })),
+    [jobs],
   );
+  return <Donut data={data} centerLabel="graded" />;
 }
