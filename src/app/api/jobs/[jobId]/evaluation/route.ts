@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
       gradedAt: now,
     });
 
-    await jobRef.update({
+    const jobUpdate: Record<string, unknown> = {
       careerPath: body.careerPath,
       band: body.band,
       currentGrade: body.finalGrade,
@@ -48,7 +48,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
       flags: body.flags ?? [],
       status: body.anomaly ? "needs_review" : "graded",
       updatedAt: now,
-    });
+    };
+    if (typeof body.jd === "string") jobUpdate.jd = body.jd;
+    if (typeof body.jobPurpose === "string") jobUpdate.jobPurpose = body.jobPurpose;
+    await jobRef.update(jobUpdate);
 
     await logActivity(orgRef, actor, {
       type: wasGraded ? "job_regraded" : "job_graded",

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Gauge, History, Trash2 } from "lucide-react";
+import { ArrowLeft, Gauge, History, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useDeleteJob } from "@/hooks/use-mutations";
@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GradeBadge } from "@/components/grade-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { GradeExplainer } from "@/components/grade-explainer";
+import { JDViewer } from "@/components/jd-viewer";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export default function JobDetailPage() {
   const { data, isLoading } = useOrgData();
   const deleteJob = useDeleteJob();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [viewJd, setViewJd] = React.useState(false);
 
   if (isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
 
@@ -96,6 +98,11 @@ export default function JobDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          {job.jd && (
+            <Button variant="outline" onClick={() => setViewJd(true)}>
+              <FileText className="size-4" /> View JD
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setConfirmDelete(true)}>
             <Trash2 className="size-4" /> Delete
           </Button>
@@ -169,6 +176,8 @@ export default function JobDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <JDViewer open={viewJd} onOpenChange={setViewJd} title={job.title} jd={job.jd ?? ""} />
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>

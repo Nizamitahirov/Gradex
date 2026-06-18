@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, Plus } from "lucide-react";
+import { Briefcase, Plus, Sparkles } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -18,11 +18,18 @@ export default function JobsPage() {
         title="Jobs"
         description="Every distinct role in your organization, with its current grade and status."
         action={
-          <Button asChild>
-            <Link href="/jobs/new">
-              <Plus className="size-4" /> Add job
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" asChild>
+              <Link href="/jobs/bulk">
+                <Sparkles className="size-4" /> Bulk AI grade
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/jobs/new">
+                <Plus className="size-4" /> Add job
+              </Link>
+            </Button>
+          </div>
         }
       />
       {isLoading ? (

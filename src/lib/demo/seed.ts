@@ -101,8 +101,8 @@ export function buildSeed(now = Date.now()): SeededData {
 
   const org: Org = {
     id: orgId,
-    name: "Acme Corporation",
-    slug: "acme",
+    name: "Databyte LLC",
+    slug: "databyte",
     logoURL: null,
     industry: "Technology",
     currency: "USD",
