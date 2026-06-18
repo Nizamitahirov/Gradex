@@ -1,30 +1,20 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { Target, Trash2 } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { Target } from "lucide-react";
+import { useOrgData } from "@/hooks/use-org-data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScaleVisual } from "@/components/scale-visual";
 
 export default function OrganizationSettingsPage() {
-  const org = useAppStore((s) => s.orgs.find((o) => o.id === s.currentOrgId));
-  const resetDemo = useAppStore((s) => s.resetDemo);
+  const { data, isLoading } = useOrgData();
 
-  const [name, setName] = React.useState(org?.name ?? "");
-  const [industry, setIndustry] = React.useState(org?.industry ?? "");
-
-  React.useEffect(() => {
-    if (org) {
-      setName(org.name);
-      setIndustry(org.industry);
-    }
-  }, [org]);
-
+  if (isLoading) return <Skeleton className="h-72 w-full rounded-2xl" />;
+  const org = data?.org;
   if (!org) return null;
   const scoping = org.scoping;
 
@@ -33,20 +23,19 @@ export default function OrganizationSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Organization profile</CardTitle>
-          <CardDescription>Basic details about your organization.</CardDescription>
+          <CardDescription>Basic details about your organization (stored in Firestore).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="orgname">Name</Label>
-              <Input id="orgname" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="orgname" defaultValue={org.name} readOnly />
             </div>
             <div className="space-y-2">
               <Label htmlFor="industry">Industry</Label>
-              <Input id="industry" value={industry} onChange={(e) => setIndustry(e.target.value)} />
+              <Input id="industry" defaultValue={org.industry} readOnly />
             </div>
           </div>
-          <Button onClick={() => toast.success("Saved")}>Save changes</Button>
         </CardContent>
       </Card>
 
@@ -57,52 +46,25 @@ export default function OrganizationSettingsPage() {
             <CardDescription>The grade range your organization uses.</CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/scoping">
-              <Target className="size-4" /> Edit scoping
-            </Link>
+            <Link href="/scoping"><Target className="size-4" /> Edit scoping</Link>
           </Button>
         </CardHeader>
         <CardContent>
           {scoping?.completed ? (
             <div className="space-y-4">
               <p className="text-sm">
-                A <strong className="tnum">{scoping.result.usedGrades.length}-grade</strong> structure,
-                grades <strong className="tnum">{scoping.result.bottomGrade}–{scoping.result.topGrade}</strong>,
-                CEO at grade <strong className="tnum">{scoping.result.topGrade}</strong>.
+                Company Grade <strong className="tnum">{scoping.result.companyGrade}</strong> (a{" "}
+                <strong className="capitalize">{scoping.result.businessSize}</strong> business unit). Jobs span grades{" "}
+                <strong className="tnum">1–{scoping.result.topGrade}</strong>; the CEO sits at grade{" "}
+                <strong className="tnum">{scoping.result.companyGrade}</strong>.
               </p>
-              <ScaleVisual
-                bottom={scoping.result.bottomGrade}
-                top={scoping.result.topGrade}
-                ceo={scoping.result.ceoGrade}
-                className="max-w-md"
-              />
+              <ScaleVisual bottom={scoping.result.bottomGrade} top={scoping.result.topGrade} ceo={scoping.result.ceoGrade} className="max-w-md" />
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Scoping is not complete.{" "}
-              <Link href="/scoping" className="text-primary hover:underline">
-                Complete it now.
-              </Link>
+              Scoping is not complete. <Link href="/scoping" className="text-primary hover:underline">Complete it now.</Link>
             </p>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
-          <CardDescription>Reset the demo organization to its seeded state.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              resetDemo();
-              toast.success("Demo data reset");
-            }}
-          >
-            <Trash2 className="size-4" /> Reset demo data
-          </Button>
         </CardContent>
       </Card>
     </div>

@@ -4,8 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Grid3x3 } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -29,9 +30,10 @@ export default function StructurePage() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
-  const org = useAppStore((s) => s.orgs.find((o) => o.id === s.currentOrgId));
-  const jobs = useAppStore((s) => s.jobs);
-  const families = useAppStore((s) => s.families);
+  const { data, isLoading } = useOrgData();
+  const org = data?.org;
+  const jobs = React.useMemo(() => data?.jobs ?? [], [data]);
+  const families = React.useMemo(() => data?.families ?? [], [data]);
 
   const [granularity, setGranularity] = React.useState<Granularity>("path");
   const [familyId, setFamilyId] = React.useState("all");
@@ -44,12 +46,13 @@ export default function StructurePage() {
       jobs.filter((j) => {
         if (j.currentGrade == null) return false;
         if (familyId !== "all" && j.familyId !== familyId) return false;
-        if (onlyFlagged && j.status !== "needs_review" && j.flags.length === 0) return false;
+        if (onlyFlagged && j.status !== "needs_review" && (j.flags?.length ?? 0) === 0) return false;
         return true;
       }),
     [jobs, familyId, onlyFlagged],
   );
 
+  if (isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
   if (!org) return null;
 
   const scoped = org.scoping?.completed

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { Briefcase, Plus } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { JobsTable } from "@/components/jobs-table";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function JobsPage() {
-  const jobs = useAppStore((s) => s.jobs);
+  const { data, isLoading } = useOrgData();
 
   return (
     <div className="space-y-6">
@@ -24,10 +25,12 @@ export default function JobsPage() {
           </Button>
         }
       />
-      {jobs.length === 0 ? (
+      {isLoading ? (
+        <Skeleton className="h-96 w-full rounded-2xl" />
+      ) : !data || data.jobs.length === 0 ? (
         <EmptyState
           icon={Briefcase}
-          title="No jobs graded yet"
+          title="No jobs yet"
           description="Add your first job and run it through the banding + grading wizard."
           action={
             <Button asChild>
@@ -38,7 +41,7 @@ export default function JobsPage() {
           }
         />
       ) : (
-        <JobsTable jobs={jobs} />
+        <JobsTable jobs={data.jobs} families={data.families} />
       )}
     </div>
   );

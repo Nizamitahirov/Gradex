@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpDown, ChevronRight } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
 import { GradeBadge } from "@/components/grade-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { getBand } from "@/lib/grading/bands";
 import { cn } from "@/lib/utils";
-import type { Job } from "@/types";
+import type { Family, Job } from "@/types";
 
 type SortKey = "title" | "grade" | "band" | "status";
 
@@ -27,8 +26,15 @@ const STATUS_LABEL: Record<Job["status"], string> = {
   needs_review: "Needs review",
 };
 
-export function JobsTable({ jobs, hideFamilyFilter = false }: { jobs: Job[]; hideFamilyFilter?: boolean }) {
-  const families = useAppStore((s) => s.families);
+export function JobsTable({
+  jobs,
+  families,
+  hideFamilyFilter = false,
+}: {
+  jobs: Job[];
+  families: Family[];
+  hideFamilyFilter?: boolean;
+}) {
   const router = useRouter();
 
   const [q, setQ] = React.useState("");

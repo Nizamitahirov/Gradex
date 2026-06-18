@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +34,26 @@ const ROLE_DESC: Record<Role, string> = {
   viewer: "Read-only access to org data.",
 };
 
+interface MemberRow {
+  id: string;
+  username: string;
+  displayName: string;
+  role: Role;
+  email: string | null;
+  isActive: boolean;
+}
+
 export default function MembersSettingsPage() {
-  const members = useAppStore((s) => s.members);
+  const { data } = useQuery<MemberRow[]>({
+    queryKey: ["members"],
+    queryFn: async () => {
+      const res = await fetch("/api/members", { cache: "no-store" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.members;
+    },
+  });
+  const members = data ?? [];
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<Role>("analyst");
@@ -53,19 +71,22 @@ export default function MembersSettingsPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
+          {members.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">No members yet.</p>
+          )}
           {members.map((m) => (
-            <div key={m.userId} className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+            <div key={m.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
               <Avatar className="size-8">
                 <AvatarFallback>{initials(m.displayName)}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{m.displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                <p className="truncate text-xs text-muted-foreground">{m.email ?? m.username}</p>
               </div>
               <Badge variant={m.role === "admin" ? "default" : "secondary"} className="capitalize">
                 {m.role}
               </Badge>
-              {m.status === "invited" && <Badge variant="warning">Invited</Badge>}
+              {!m.isActive && <Badge variant="warning">Inactive</Badge>}
             </div>
           ))}
         </CardContent>

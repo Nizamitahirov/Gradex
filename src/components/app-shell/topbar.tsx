@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronsUpDown, LogOut, Search, User, Building2, RotateCcw } from "lucide-react";
-import { useAppStore } from "@/stores/app-store";
+import { LogOut, Search, User, Building2 } from "lucide-react";
+import { useOrgData } from "@/hooks/use-org-data";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -20,17 +20,13 @@ import { initials } from "@/lib/utils";
 import { GlobalSearch } from "@/components/app-shell/global-search";
 
 export function Topbar() {
-  const orgs = useAppStore((s) => s.orgs);
-  const currentOrgId = useAppStore((s) => s.currentOrgId);
-  const setCurrentOrg = useAppStore((s) => s.setCurrentOrg);
-  const resetDemo = useAppStore((s) => s.resetDemo);
+  const { data } = useOrgData();
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = React.useState(false);
 
   const displayName = user?.displayName ?? "User";
   const userEmail = user?.email ?? user?.username ?? "";
-
-  const currentOrg = orgs.find((o) => o.id === currentOrgId);
+  const currentOrg = data?.org;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -45,26 +41,11 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Org switcher */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="sm" className="gap-2">
-            <Building2 className="size-4" />
-            <span className="max-w-[140px] truncate">{currentOrg?.name ?? "Select org"}</span>
-            <ChevronsUpDown className="size-3.5 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-          {orgs.map((o) => (
-            <DropdownMenuItem key={o.id} onClick={() => setCurrentOrg(o.id)}>
-              <Building2 className="size-4" />
-              <span className="flex-1 truncate">{o.name}</span>
-              {o.id === currentOrgId && <Check className="size-4 text-primary" />}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Org */}
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-medium">
+        <Building2 className="size-4 text-muted-foreground" />
+        <span className="max-w-[160px] truncate">{currentOrg?.name ?? "Gradex"}</span>
+      </div>
 
       <div className="flex-1" />
 
@@ -102,9 +83,6 @@ export function Topbar() {
             <Link href="/settings/profile">
               <User className="size-4" /> Profile
             </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => resetDemo()}>
-            <RotateCcw className="size-4" /> Reset demo data
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => logout()}>
