@@ -15,18 +15,32 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { buildSeed, DEMO_USER } from "../src/lib/demo/seed";
 
-async function main() {
+function resolveServiceAccount() {
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (b64) {
+    const json = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+    return {
+      projectId: json.project_id,
+      clientEmail: json.client_email,
+      privateKey: String(json.private_key).replace(/\\n/g, "\n"),
+    };
+  }
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (projectId && clientEmail && privateKey) return { projectId, clientEmail, privateKey };
+  return null;
+}
 
-  if (!projectId || !clientEmail || !privateKey) {
-    console.error("Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY.");
+async function main() {
+  const sa = resolveServiceAccount();
+  if (!sa) {
+    console.error("Missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY.");
     process.exit(1);
   }
 
   if (!getApps().length) {
-    initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    initializeApp({ credential: cert(sa) });
   }
   const db = getFirestore();
 
