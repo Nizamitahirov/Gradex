@@ -12,8 +12,11 @@
 
 import "server-only";
 import { getApps, initializeApp, cert, getApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+
+// NOTE: we deliberately do NOT import "firebase-admin/auth". Our auth is custom
+// (jsonwebtoken + bcrypt), and firebase-admin/auth pulls in jwks-rsa → jose
+// (ESM-only), which breaks require() in Vercel's Node serverless runtime.
 
 interface ServiceAccount {
   projectId: string;
@@ -62,10 +65,6 @@ function getAdminApp(): App {
   }
   cachedApp = initializeApp({ credential: cert(sa) });
   return cachedApp;
-}
-
-export function getAdminAuth() {
-  return getAuth(getAdminApp());
 }
 
 export function getAdminDb() {
