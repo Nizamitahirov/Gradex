@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# WTW GGS proprietary source (local reference only)
+docs/ggs-user-guide.txt

@@ -1,76 +1,141 @@
 /**
- * Banding suggestion — SPEC.md §7 & §14 (Step 1).
- *
- * From a short set of qualifying questions, propose a band (with reasoning).
- * The user can always override. Pure function so it is unit-testable.
+ * GGS Step 2 — Banding decision tree (WTW GGS 4.2 §3). See docs/GGS_MODEL.md.
+ * Pure & unit-tested. Answers are the tree's yes/no questions; the result is a
+ * band and its career path, with the reasoning that led there.
  */
 
 import type { BandKey, CareerPath } from "./bands";
 
-export type ContributionType = "tasks" | "expertise" | "leading";
-
 export interface BandingAnswers {
-  careerPath: CareerPath;
-  /** Does the job manage people? */
-  managesPeople: boolean;
-  /** Management layers below this job (0 = ICs only, 1 = manages ICs, 2 = manages managers, 3 = manages a function/BU). */
-  managementLayers: 0 | 1 | 2 | 3;
-  /** Primary nature of contribution. */
-  contribution: ContributionType;
-  /** Is this the single top job? */
-  isTopJob?: boolean;
+  /** Q1: Managing people a focus? (achieves results through others) */
+  managingPeopleFocus: boolean;
+
+  // Management branch
+  /** Q2: Manage professionals and/or managers? (vs. supervise clerks/operators/technicians) */
+  manageProfessionalsOrManagers?: boolean;
+  /** Q3: Set / significantly influence organizational FUNCTIONAL strategy? */
+  setFunctionalStrategy?: boolean;
+  /** Q4: Set / significantly influence BUSINESS strategy? */
+  setBusinessStrategy?: boolean;
+  /** Q5: CEO / Business Unit Manager? (single top job, P&L) */
+  isCeo?: boolean;
+
+  // Individual-contributor branch
+  /** Q6: Specific job functional knowledge required? */
+  specificFunctionalKnowledge?: boolean;
+  /** Q7: Independence in applying professional expertise? */
+  independentProfessionalExpertise?: boolean;
+  /** Q8: Subject matter expert? */
+  subjectMatterExpert?: boolean;
 }
 
 export interface BandSuggestion {
   band: BandKey;
+  path: CareerPath;
   reasoning: string;
 }
 
 export function suggestBand(a: BandingAnswers): BandSuggestion {
-  if (a.isTopJob) {
-    return { band: "ceo", reasoning: "Flagged as the single top job, so it anchors to the CEO band." };
-  }
-
-  if (a.careerPath === "M" || a.managesPeople) {
-    switch (a.managementLayers) {
-      case 0:
-      case 1:
-        return {
-          band: "supervisory",
-          reasoning: "Manages people at the first level (a team's day-to-day work).",
-        };
-      case 2:
-        return {
-          band: "manager",
-          reasoning: "Accountable for results through others, managing a team or function.",
-        };
-      case 3:
-      default:
-        return {
-          band: "senior_manager",
-          reasoning: "Manages managers or a sizeable function, setting operational direction.",
-        };
+  if (a.managingPeopleFocus) {
+    // ----- Management career path -----
+    if (!a.manageProfessionalsOrManagers) {
+      return {
+        band: "3M",
+        path: "M",
+        reasoning: "Supervises operators/technicians/clerks or is first-line management — Junior Management.",
+      };
     }
+    if (!a.setFunctionalStrategy) {
+      return {
+        band: "4M",
+        path: "M",
+        reasoning: "Manages professionals/managers but does not set functional strategy — Middle Management.",
+      };
+    }
+    if (!a.setBusinessStrategy) {
+      return {
+        band: "5FS",
+        path: "M",
+        reasoning: "Sets/influences organizational functional strategy — Senior Management.",
+      };
+    }
+    if (a.isCeo) {
+      return {
+        band: "ceo",
+        path: "M",
+        reasoning: "The single top job with P&L responsibility for the business unit — CEO.",
+      };
+    }
+    return {
+      band: "5BS",
+      path: "M",
+      reasoning: "Determines/influences business-unit strategy as a member of the executive team — Top Management.",
+    };
   }
 
-  // Individual Contributor path
-  switch (a.contribution) {
-    case "tasks":
-      return {
-        band: "clerical",
-        reasoning: "Primarily performs defined tasks using established methods — an IC support role.",
-      };
-    case "expertise":
-      return {
-        band: "professional",
-        reasoning: "Applies professional/disciplinary knowledge to solve problems analytically.",
-      };
-    case "leading":
-      return {
-        band: "expert",
-        reasoning: "Deep authority that advances the discipline without managing people.",
-      };
-    default:
-      return { band: "professional", reasoning: "Defaulted to the Professional band." };
+  // ----- Individual-contributor career path -----
+  if (!a.specificFunctionalKnowledge) {
+    return {
+      band: "1",
+      path: "IC",
+      reasoning: "Simple, repetitive tasks with no specific training required — Manual / Junior Admin.",
+    };
   }
+  if (!a.independentProfessionalExpertise) {
+    return {
+      band: "2",
+      path: "IC",
+      reasoning: "Specific knowledge applied within well-defined procedures — Clerical / Administrative.",
+    };
+  }
+  if (!a.subjectMatterExpert) {
+    return {
+      band: "3IC",
+      path: "IC",
+      reasoning: "Independently applies professional expertise and judgment — Professional.",
+    };
+  }
+  return {
+    band: "4IC",
+    path: "IC",
+    reasoning: "A leading expert in a subject with deep technical expertise and few peers — Subject Matter Expert.",
+  };
 }
+
+/** The ordered banding questions, for driving a guided UI. */
+export const BANDING_QUESTIONS = {
+  managingPeopleFocus: {
+    title: "Is managing people a focus?",
+    objective:
+      "Separate jobs focused on managing people (results through others) from those focused on individual expertise.",
+  },
+  manageProfessionalsOrManagers: {
+    title: "Manage professionals and/or managers?",
+    objective:
+      "Separate managers (manage professionals/managers) from supervisors (supervise clerks/operators/technicians).",
+  },
+  setFunctionalStrategy: {
+    title: "Set or significantly influence organizational functional strategy?",
+    objective: "Separate jobs that determine or significantly impact a function's strategy.",
+  },
+  setBusinessStrategy: {
+    title: "Set or significantly influence business strategy?",
+    objective: "Separate positions that determine or significantly impact business-unit-wide strategy.",
+  },
+  isCeo: {
+    title: "CEO / Business Unit Manager?",
+    objective: "Identify the single top job with P&L responsibility for the business unit.",
+  },
+  specificFunctionalKnowledge: {
+    title: "Specific job functional knowledge required?",
+    objective: "Separate jobs that require defined knowledge/skills from those that do not.",
+  },
+  independentProfessionalExpertise: {
+    title: "Independence in applying professional expertise?",
+    objective: "Separate jobs applying professional expertise from those working within a defined framework.",
+  },
+  subjectMatterExpert: {
+    title: "Subject matter expert?",
+    objective: "Separate technical/domain experts from other professionals.",
+  },
+} as const;

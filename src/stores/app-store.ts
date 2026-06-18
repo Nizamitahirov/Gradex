@@ -258,7 +258,7 @@ export const useAppStore = create<AppState>()(
         })),
     }),
     {
-      name: "gradex-store-v1",
+      name: "gradex-store-v2",
     },
   ),
 );

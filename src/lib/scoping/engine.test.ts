@@ -1,83 +1,75 @@
 import { describe, it, expect } from "vitest";
-import { computeScoping } from "./engine";
+import {
+  computeScoping,
+  revenueScopeGrade,
+  fteScopeGrade,
+  dcGeoScopeGrade,
+  businessSize,
+} from "./engine";
 
-describe("computeScoping", () => {
-  it("smallest orgs land near the low calibration target (top grade 12–14)", () => {
-    const r = computeScoping({
-      revenue: 2_000_000,
-      currency: "USD",
-      headcount: 20,
-      geoBreadth: "single",
-      complexity: "single",
-    });
-    expect(r.breakdown.total).toBe(0);
-    expect(r.topGrade).toBeGreaterThanOrEqual(12);
-    expect(r.topGrade).toBeLessThanOrEqual(14);
-    expect(r.ceoGrade).toBe(r.topGrade);
-    expect(r.bottomGrade).toBeGreaterThanOrEqual(1);
+describe("scope grade tables (GGS 4.2)", () => {
+  it("maps revenue (millions USD) to the right scope grade", () => {
+    expect(revenueScopeGrade(50)).toBe(16);
+    expect(revenueScopeGrade(75)).toBe(17);
+    expect(revenueScopeGrade(3_000)).toBe(21);
+    expect(revenueScopeGrade(120_000)).toBe(25);
   });
 
-  it("mid-size orgs land near the mid calibration target (top grade 18–20)", () => {
-    const r = computeScoping({
-      revenue: 2_000_000_000, // $2B → 3 pts
-      currency: "USD",
-      headcount: 5_000, // 3 pts
-      geoBreadth: "national", // 2 pts
-      complexity: "few", // 1 pt
-    });
-    expect(r.breakdown.total).toBe(9);
-    expect(r.topGrade).toBeGreaterThanOrEqual(18);
-    expect(r.topGrade).toBeLessThanOrEqual(20);
+  it("maps FTE employees to the right scope grade", () => {
+    expect(fteScopeGrade(50)).toBe(16);
+    expect(fteScopeGrade(8_000)).toBe(21);
+    expect(fteScopeGrade(300_000)).toBe(25);
   });
 
-  it("largest / most complex orgs reach the top of the scale (24–25)", () => {
+  it("maps diversity/complexity × geographic breadth", () => {
+    expect(dcGeoScopeGrade("low", "domestic")).toBe(16);
+    expect(dcGeoScopeGrade("medium", "international")).toBe(21);
+    expect(dcGeoScopeGrade("high", "global")).toBe(24);
+  });
+});
+
+describe("computeScoping → Company Grade", () => {
+  it("averages the three scope grades and rounds", () => {
+    // revenue 3000→21, fte 8000→21, medium×international→21 ⇒ 21
     const r = computeScoping({
-      revenue: 80_000_000_000, // 5 pts
-      currency: "USD",
-      headcount: 120_000, // 5 pts
-      geoBreadth: "global", // 4 pts
-      complexity: "conglomerate", // 4 pts
+      revenueMillions: 3_000,
+      fteEmployees: 8_000,
+      geographicBreadth: "international",
+      diversityComplexity: "medium",
     });
-    expect(r.breakdown.total).toBe(18);
-    expect(r.topGrade).toBeGreaterThanOrEqual(24);
-    expect(r.topGrade).toBeLessThanOrEqual(25);
+    expect(r.revenueGrade).toBe(21);
+    expect(r.fteGrade).toBe(21);
+    expect(r.dcGeoGrade).toBe(21);
+    expect(r.companyGrade).toBe(21);
+    expect(r.ceoGrade).toBe(21);
+    expect(r.topGrade).toBe(21);
+    expect(r.bottomGrade).toBe(1);
+    expect(r.usedGrades[0]).toBe(1);
+    expect(r.usedGrades.at(-1)).toBe(21);
   });
 
-  it("produces a contiguous used-grade range and grows span with size", () => {
+  it("Company Grade stays within 16–25", () => {
     const small = computeScoping({
-      revenue: 2_000_000,
-      currency: "USD",
-      headcount: 20,
-      geoBreadth: "single",
-      complexity: "single",
+      revenueMillions: 10,
+      fteEmployees: 30,
+      geographicBreadth: "domestic",
+      diversityComplexity: "low",
     });
-    const big = computeScoping({
-      revenue: 80_000_000_000,
-      currency: "USD",
-      headcount: 120_000,
-      geoBreadth: "global",
-      complexity: "conglomerate",
+    expect(small.companyGrade).toBe(16);
+
+    const huge = computeScoping({
+      revenueMillions: 200_000,
+      fteEmployees: 300_000,
+      geographicBreadth: "global",
+      diversityComplexity: "high",
     });
-    // contiguous
-    expect(small.usedGrades[0]).toBe(small.bottomGrade);
-    expect(small.usedGrades[small.usedGrades.length - 1]).toBe(small.topGrade);
-    // bigger orgs span more grades
-    expect(big.usedGrades.length).toBeGreaterThan(small.usedGrades.length);
+    expect(huge.companyGrade).toBeLessThanOrEqual(25);
+    expect(huge.companyGrade).toBeGreaterThanOrEqual(24);
   });
 
-  it("top grade never decreases as complexity rises (monotonic)", () => {
-    const complexities = ["single", "few", "multiple", "conglomerate"] as const;
-    let prevTop = 0;
-    for (const complexity of complexities) {
-      const r = computeScoping({
-        revenue: 2_000_000_000,
-        currency: "USD",
-        headcount: 5_000,
-        geoBreadth: "national",
-        complexity,
-      });
-      expect(r.topGrade).toBeGreaterThanOrEqual(prevTop);
-      prevTop = r.topGrade;
-    }
+  it("classifies business size", () => {
+    expect(businessSize(17)).toBe("small");
+    expect(businessSize(21)).toBe("medium");
+    expect(businessSize(24)).toBe("large");
   });
 });

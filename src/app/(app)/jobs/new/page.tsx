@@ -73,7 +73,7 @@ export default function NewJobPage() {
       code: code.trim() || undefined,
       description: description.trim(),
       careerPath: "IC",
-      band: "professional",
+      band: "3IC",
       reportsToJobId: reportsTo === "none" ? null : reportsTo,
     });
     toast.success("Job created — let's grade it.");

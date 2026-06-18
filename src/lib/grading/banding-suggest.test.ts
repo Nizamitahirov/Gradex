@@ -1,45 +1,88 @@
 import { describe, it, expect } from "vitest";
 import { suggestBand } from "./banding-suggest";
 
-describe("suggestBand", () => {
-  it("anchors the top job to the CEO band", () => {
+describe("suggestBand — GGS decision tree", () => {
+  it("IC: no functional knowledge → Band 1", () => {
+    expect(suggestBand({ managingPeopleFocus: false, specificFunctionalKnowledge: false }).band).toBe("1");
+  });
+
+  it("IC: knowledge but no professional independence → Band 2", () => {
     expect(
-      suggestBand({ careerPath: "M", managesPeople: true, managementLayers: 3, contribution: "leading", isTopJob: true }).band,
+      suggestBand({ managingPeopleFocus: false, specificFunctionalKnowledge: true, independentProfessionalExpertise: false }).band,
+    ).toBe("2");
+  });
+
+  it("IC: professional, not SME → Band 3IC", () => {
+    expect(
+      suggestBand({
+        managingPeopleFocus: false,
+        specificFunctionalKnowledge: true,
+        independentProfessionalExpertise: true,
+        subjectMatterExpert: false,
+      }).band,
+    ).toBe("3IC");
+  });
+
+  it("IC: subject matter expert → Band 4IC", () => {
+    expect(
+      suggestBand({
+        managingPeopleFocus: false,
+        specificFunctionalKnowledge: true,
+        independentProfessionalExpertise: true,
+        subjectMatterExpert: true,
+      }).band,
+    ).toBe("4IC");
+  });
+
+  it("M: supervises operators (not professionals) → Band 3M", () => {
+    expect(
+      suggestBand({ managingPeopleFocus: true, manageProfessionalsOrManagers: false }).band,
+    ).toBe("3M");
+  });
+
+  it("M: manages professionals, no functional strategy → Band 4M", () => {
+    expect(
+      suggestBand({ managingPeopleFocus: true, manageProfessionalsOrManagers: true, setFunctionalStrategy: false }).band,
+    ).toBe("4M");
+  });
+
+  it("M: sets functional strategy, not business strategy → Band 5FS", () => {
+    expect(
+      suggestBand({
+        managingPeopleFocus: true,
+        manageProfessionalsOrManagers: true,
+        setFunctionalStrategy: true,
+        setBusinessStrategy: false,
+      }).band,
+    ).toBe("5FS");
+  });
+
+  it("M: sets business strategy but not CEO → Band 5BS", () => {
+    expect(
+      suggestBand({
+        managingPeopleFocus: true,
+        manageProfessionalsOrManagers: true,
+        setFunctionalStrategy: true,
+        setBusinessStrategy: true,
+        isCeo: false,
+      }).band,
+    ).toBe("5BS");
+  });
+
+  it("M: the top job → CEO", () => {
+    expect(
+      suggestBand({
+        managingPeopleFocus: true,
+        manageProfessionalsOrManagers: true,
+        setFunctionalStrategy: true,
+        setBusinessStrategy: true,
+        isCeo: true,
+      }).band,
     ).toBe("ceo");
   });
 
-  it("first-level people management → supervisory", () => {
-    expect(
-      suggestBand({ careerPath: "M", managesPeople: true, managementLayers: 1, contribution: "leading" }).band,
-    ).toBe("supervisory");
-  });
-
-  it("managing managers → senior management", () => {
-    expect(
-      suggestBand({ careerPath: "M", managesPeople: true, managementLayers: 3, contribution: "leading" }).band,
-    ).toBe("senior_manager");
-  });
-
-  it("IC performing tasks → clerical", () => {
-    expect(
-      suggestBand({ careerPath: "IC", managesPeople: false, managementLayers: 0, contribution: "tasks" }).band,
-    ).toBe("clerical");
-  });
-
-  it("IC applying expertise → professional", () => {
-    expect(
-      suggestBand({ careerPath: "IC", managesPeople: false, managementLayers: 0, contribution: "expertise" }).band,
-    ).toBe("professional");
-  });
-
-  it("IC deep authority → expert", () => {
-    expect(
-      suggestBand({ careerPath: "IC", managesPeople: false, managementLayers: 0, contribution: "leading" }).band,
-    ).toBe("expert");
-  });
-
-  it("always returns reasoning text", () => {
-    const s = suggestBand({ careerPath: "IC", managesPeople: false, managementLayers: 0, contribution: "expertise" });
-    expect(s.reasoning.length).toBeGreaterThan(0);
+  it("returns the correct career path", () => {
+    expect(suggestBand({ managingPeopleFocus: false, specificFunctionalKnowledge: false }).path).toBe("IC");
+    expect(suggestBand({ managingPeopleFocus: true, manageProfessionalsOrManagers: false }).path).toBe("M");
   });
 });
