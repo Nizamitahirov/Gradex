@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // firebase-admin (and its gRPC/native deps) must not be bundled by the
+  // server compiler — keep it external so the Admin SDK runs correctly in
+  // Vercel serverless functions (route handlers).
+  serverExternalPackages: ["firebase-admin"],
 };
 
 export default nextConfig;
