@@ -52,9 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.data.user);
         return { success: true };
       }
-      return { success: false, error: data.error || "Giriş zamanı xəta baş verdi" };
+      return { success: false, error: data.error || "Sign-in failed" };
     } catch {
-      return { success: false, error: "Şəbəkə xətası" };
+      return { success: false, error: "Network error" };
     }
   }, []);
 
