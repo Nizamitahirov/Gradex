@@ -16,13 +16,14 @@ export function Logo({ className, showText = true }: { className?: string; showT
 }
 
 /** Gradient rounded-square mark with an ascending grade glyph and soft glow. */
-export function GradexMark({ className }: { className?: string }) {
+export function GradexMark({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <span
       className={cn("inline-flex items-center justify-center rounded-[10px] text-white", className)}
       style={{
         background: "linear-gradient(135deg, #6E6CFF, #B57BFF 60%, #FF6FB0)",
         boxShadow: "var(--shadow-glow)",
+        ...style,
       }}
     >
       <svg viewBox="0 0 24 24" fill="none" className="size-[60%]" aria-hidden="true">
