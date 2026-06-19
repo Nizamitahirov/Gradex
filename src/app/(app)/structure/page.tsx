@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Grid3x3, ArrowLeftRight } from "lucide-react";
+import { Grid3x3, ArrowLeftRight, EyeOff } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,7 @@ export default function StructurePage() {
   const [view, setView] = React.useState<View>("matrix");
   const [granularity, setGranularity] = React.useState<Granularity>("path");
   const [swap, setSwap] = React.useState(false);
+  const [hideBlanks, setHideBlanks] = React.useState(false);
   const [familyId, setFamilyId] = React.useState("all");
   const [onlyFlagged, setOnlyFlagged] = React.useState(false);
 
@@ -72,6 +73,15 @@ export default function StructurePage() {
 
   const cellJobs = (grade: number, seg: Segment) =>
     graded.filter((j) => j.currentGrade === grade && seg.bands.includes(j.band as BandKey));
+
+  // "Don't show blanks": drop grades/segments that have no jobs at all.
+  const visSegments = hideBlanks
+    ? segments.filter((seg) => gradesDesc.some((g) => cellJobs(g, seg).length > 0))
+    : segments;
+  const visGradesDesc = hideBlanks
+    ? gradesDesc.filter((g) => segments.some((seg) => cellJobs(g, seg).length > 0))
+    : gradesDesc;
+  const visGradesAsc = [...visGradesDesc].reverse();
 
   const hasGraded = jobs.some((j) => j.currentGrade != null);
 
@@ -123,6 +133,15 @@ export default function StructurePage() {
                 >
                   <ArrowLeftRight className="size-4 text-muted-foreground" /> Swap rows/columns
                 </button>
+                <button
+                  onClick={() => setHideBlanks((b) => !b)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                    hideBlanks ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-accent",
+                  )}
+                >
+                  <EyeOff className="size-4" /> Don&apos;t show blanks
+                </button>
               </>
             )}
 
@@ -149,18 +168,18 @@ export default function StructurePage() {
             // Grades as rows, segments as columns
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
               <div className="min-w-[640px]">
-                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `72px repeat(${segments.length}, minmax(130px, 1fr))` }}>
+                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `72px repeat(${visSegments.length}, minmax(130px, 1fr))` }}>
                   <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground">Grade</div>
-                  {segments.map((seg) => (
+                  {visSegments.map((seg) => (
                     <div key={seg.key} className={cn("border-l border-border px-3 py-2.5 text-xs font-semibold", seg.path === "M" ? "text-primary" : "text-info")}>
                       {seg.label}
                     </div>
                   ))}
                 </div>
-                {gradesDesc.map((grade) => (
-                  <div key={grade} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `72px repeat(${segments.length}, minmax(130px, 1fr))` }}>
+                {visGradesDesc.map((grade) => (
+                  <div key={grade} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `72px repeat(${visSegments.length}, minmax(130px, 1fr))` }}>
                     <div className="flex items-center px-3 py-2">{gradeCell(grade)}</div>
-                    {segments.map((seg) => (
+                    {visSegments.map((seg) => (
                       <div key={seg.key} className="border-l border-border p-1.5">
                         <div className="flex flex-wrap gap-1">{cellJobs(grade, seg).map(chip)}</div>
                       </div>
@@ -172,17 +191,17 @@ export default function StructurePage() {
           ) : (
             // Segments as rows, grades as columns
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <div style={{ minWidth: 160 + gradesAsc.length * 88 }}>
-                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `160px repeat(${gradesAsc.length}, minmax(84px, 1fr))` }}>
+              <div style={{ minWidth: 160 + visGradesAsc.length * 88 }}>
+                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `160px repeat(${visGradesAsc.length}, minmax(84px, 1fr))` }}>
                   <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground">Band / Path</div>
-                  {gradesAsc.map((g) => (
+                  {visGradesAsc.map((g) => (
                     <div key={g} className="border-l border-border px-2 py-2.5">{gradeCell(g)}</div>
                   ))}
                 </div>
-                {segments.map((seg) => (
-                  <div key={seg.key} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `160px repeat(${gradesAsc.length}, minmax(84px, 1fr))` }}>
+                {visSegments.map((seg) => (
+                  <div key={seg.key} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `160px repeat(${visGradesAsc.length}, minmax(84px, 1fr))` }}>
                     <div className={cn("flex items-center px-3 py-2 text-xs font-semibold", seg.path === "M" ? "text-primary" : "text-info")}>{seg.label}</div>
-                    {gradesAsc.map((g) => (
+                    {visGradesAsc.map((g) => (
                       <div key={g} className="border-l border-border p-1.5">
                         <div className="flex flex-wrap gap-1">{cellJobs(g, seg).map(chip)}</div>
                       </div>
