@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Gauge, History, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, Gauge, History, Trash2, FileText, Download, FileCode2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useDeleteJob } from "@/hooks/use-mutations";
@@ -25,7 +25,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getBand, type BandKey } from "@/lib/grading/bands";
+import { buildJobDocument } from "@/lib/export/job-document";
 import type { GradingResult } from "@/lib/grading/engine";
 import { formatDate, formatTimeAgo } from "@/lib/time";
 import type { Evaluation } from "@/types";
@@ -73,6 +80,40 @@ export default function JobDetailPage() {
   const current = evals.find((e) => e.id === job.currentEvaluationId) ?? evals[0];
   const reportsTo = data?.jobs.find((j) => j.id === job.reportsToJobId);
 
+  const exportHtml = () => {
+    const doc = buildJobDocument({ job, evaluation: current, org: data?.org, family });
+    const blob = new Blob([doc.html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${job.title.replace(/\s+/g, "-").toLowerCase()}-grading.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = async () => {
+    const doc = buildJobDocument({ job, evaluation: current, org: data?.org, family });
+    const el = document.createElement("div");
+    el.innerHTML = doc.body;
+    el.style.background = "#fff";
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      await html2pdf()
+        .set({
+          margin: 0,
+          filename: `${job.title.replace(/\s+/g, "-").toLowerCase()}-grading.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["css", "avoid-all"] },
+        })
+        .from(el)
+        .save();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "PDF export failed");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => router.push("/jobs")}>
@@ -97,12 +138,27 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {job.jd && (
             <Button variant="outline" onClick={() => setViewJd(true)}>
               <FileText className="size-4" /> View JD
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="size-4" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportPdf}>
+                <FileDown className="size-4" /> Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportHtml}>
+                <FileCode2 className="size-4" /> Export as HTML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={() => setConfirmDelete(true)}>
             <Trash2 className="size-4" /> Delete
           </Button>
