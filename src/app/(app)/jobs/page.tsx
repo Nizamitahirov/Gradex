@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { Briefcase, Plus, Sparkles } from "lucide-react";
+import { Briefcase, Plus, Sparkles, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -11,6 +13,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function JobsPage() {
   const { data, isLoading } = useOrgData();
+  const [exporting, setExporting] = React.useState(false);
+
+  const exportExcel = async () => {
+    if (!data) return;
+    setExporting(true);
+    try {
+      const { exportJobsToExcel } = await import("@/lib/export/excel");
+      await exportJobsToExcel(data.jobs, data.families, data.evaluations, data.org.name);
+      toast.success("Exported to Excel.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -19,6 +36,9 @@ export default function JobsPage() {
         description="Every distinct role in your organization, with its current grade and status."
         action={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={exportExcel} disabled={exporting || !data?.jobs.length}>
+              <FileSpreadsheet className="size-4" /> {exporting ? "Exporting…" : "Export to Excel"}
+            </Button>
             <Button variant="secondary" asChild>
               <Link href="/jobs/bulk">
                 <Sparkles className="size-4" /> Bulk AI grade

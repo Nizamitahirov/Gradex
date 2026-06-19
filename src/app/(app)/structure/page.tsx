@@ -8,7 +8,7 @@ import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { JobsTable } from "@/components/jobs-table";
+import { StructureTable } from "@/components/structure-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -163,7 +163,7 @@ export default function StructurePage() {
           </div>
 
           {view === "table" ? (
-            <JobsTable jobs={graded} families={families} />
+            <StructureTable jobs={graded} families={families} />
           ) : !swap ? (
             // Grades as rows, segments as columns
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
