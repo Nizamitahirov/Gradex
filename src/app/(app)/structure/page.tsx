@@ -3,28 +3,25 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Grid3x3 } from "lucide-react";
+import { Grid3x3, ArrowLeftRight } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
+import { JobsTable } from "@/components/jobs-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { gradeColor, gradeColorSoftDark } from "@/lib/grade-colors";
 import { BANDS, bandsForPath, getBand, type BandKey } from "@/lib/grading/bands";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/types";
 
+type View = "matrix" | "table";
 type Granularity = "path" | "band";
+interface Segment { key: string; label: string; path: "IC" | "M"; bands: BandKey[] }
 
 export default function StructurePage() {
   const router = useRouter();
@@ -35,7 +32,9 @@ export default function StructurePage() {
   const jobs = React.useMemo(() => data?.jobs ?? [], [data]);
   const families = React.useMemo(() => data?.families ?? [], [data]);
 
+  const [view, setView] = React.useState<View>("matrix");
   const [granularity, setGranularity] = React.useState<Granularity>("path");
+  const [swap, setSwap] = React.useState(false);
   const [familyId, setFamilyId] = React.useState("all");
   const [onlyFlagged, setOnlyFlagged] = React.useState(false);
 
@@ -59,119 +58,141 @@ export default function StructurePage() {
     ? { lo: org.scoping.result.bottomGrade, hi: org.scoping.result.topGrade }
     : { lo: 1, hi: 25 };
 
-  const grades: number[] = [];
-  for (let g = scoped.hi; g >= scoped.lo; g--) grades.push(g);
+  const gradesDesc: number[] = [];
+  for (let g = scoped.hi; g >= scoped.lo; g--) gradesDesc.push(g);
+  const gradesAsc = [...gradesDesc].reverse();
 
-  // Columns
-  const columns: { key: string; label: string; path: "IC" | "M"; bands: BandKey[] }[] =
+  const segments: Segment[] =
     granularity === "path"
       ? [
           { key: "IC", label: "Individual Contributor", path: "IC", bands: bandsForPath("IC").map((b) => b.key) },
           { key: "M", label: "Management", path: "M", bands: bandsForPath("M").map((b) => b.key) },
         ]
-      : BANDS.map((b) => ({ key: b.key, label: b.name, path: b.path, bands: [b.key] }));
+      : BANDS.map((b) => ({ key: b.key, label: `${b.code} · ${b.name}`, path: b.path, bands: [b.key] }));
 
-  const cellJobs = (grade: number, col: (typeof columns)[number]) =>
-    graded.filter((j) => j.currentGrade === grade && col.bands.includes(j.band as BandKey));
+  const cellJobs = (grade: number, seg: Segment) =>
+    graded.filter((j) => j.currentGrade === grade && seg.bands.includes(j.band as BandKey));
 
   const hasGraded = jobs.some((j) => j.currentGrade != null);
+
+  const chip = (j: Job) => (
+    <JobChip key={j.id} job={j} familyColor={familyMap[j.familyId]?.color} isDark={isDark} onClick={() => router.push(`/jobs/${j.id}`)} />
+  );
+
+  const gradeCell = (grade: number) => {
+    const c = gradeColor(grade);
+    return (
+      <div className="flex items-center gap-2">
+        <span className="size-3 rounded-sm" style={{ background: c.solid }} />
+        <span className="text-sm font-bold tnum">{grade}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Grade structure"
-        description="Your whole job architecture at a glance — jobs arranged by grade and band."
+        description="Your whole job architecture at a glance — jobs by grade and band, or as a sortable table."
       />
 
       {!hasGraded ? (
-        <EmptyState
-          icon={Grid3x3}
-          title="Nothing to chart yet"
-          description="Grade some jobs and they'll appear here, positioned by grade and band."
-        />
+        <EmptyState icon={Grid3x3} title="Nothing to chart yet" description="Grade some jobs and they'll appear here." />
       ) : (
         <>
+          {/* Controls */}
           <div className="flex flex-wrap items-center gap-3">
-            <Tabs value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
+            <Tabs value={view} onValueChange={(v) => setView(v as View)}>
               <TabsList>
-                <TabsTrigger value="path">By path</TabsTrigger>
-                <TabsTrigger value="band">By band</TabsTrigger>
+                <TabsTrigger value="matrix">Matrix</TabsTrigger>
+                <TabsTrigger value="table">Table</TabsTrigger>
               </TabsList>
             </Tabs>
+
+            {view === "matrix" && (
+              <>
+                <Tabs value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
+                  <TabsList>
+                    <TabsTrigger value="path">By path</TabsTrigger>
+                    <TabsTrigger value="band">By band</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <button
+                  onClick={() => setSwap((s) => !s)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  <ArrowLeftRight className="size-4 text-muted-foreground" /> Swap rows/columns
+                </button>
+              </>
+            )}
+
+            <div className="flex-1" />
+
             <Select value={familyId} onValueChange={setFamilyId}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Family" />
-              </SelectTrigger>
+              <SelectTrigger className="w-44"><SelectValue placeholder="Family" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All families</SelectItem>
                 {families.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}
-                  </SelectItem>
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
               <Switch id="flagged" checked={onlyFlagged} onCheckedChange={setOnlyFlagged} />
-              <Label htmlFor="flagged" className="cursor-pointer text-sm text-muted-foreground">
-                Only flagged
-              </Label>
+              <Label htmlFor="flagged" className="cursor-pointer text-sm text-muted-foreground">Only flagged</Label>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border bg-card">
-            <div className="min-w-[640px]">
-              {/* Header */}
-              <div
-                className="grid border-b border-border bg-muted/40"
-                style={{ gridTemplateColumns: `64px repeat(${columns.length}, minmax(120px, 1fr))` }}
-              >
-                <div className="px-3 py-2.5 text-xs font-medium text-muted-foreground">Grade</div>
-                {columns.map((c) => (
-                  <div
-                    key={c.key}
-                    className={cn(
-                      "border-l border-border px-3 py-2.5 text-xs font-medium",
-                      c.path === "M" ? "text-primary" : "text-info",
-                    )}
-                  >
-                    {c.label}
+          {view === "table" ? (
+            <JobsTable jobs={graded} families={families} />
+          ) : !swap ? (
+            // Grades as rows, segments as columns
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <div className="min-w-[640px]">
+                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `72px repeat(${segments.length}, minmax(130px, 1fr))` }}>
+                  <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground">Grade</div>
+                  {segments.map((seg) => (
+                    <div key={seg.key} className={cn("border-l border-border px-3 py-2.5 text-xs font-semibold", seg.path === "M" ? "text-primary" : "text-info")}>
+                      {seg.label}
+                    </div>
+                  ))}
+                </div>
+                {gradesDesc.map((grade) => (
+                  <div key={grade} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `72px repeat(${segments.length}, minmax(130px, 1fr))` }}>
+                    <div className="flex items-center px-3 py-2">{gradeCell(grade)}</div>
+                    {segments.map((seg) => (
+                      <div key={seg.key} className="border-l border-border p-1.5">
+                        <div className="flex flex-wrap gap-1">{cellJobs(grade, seg).map(chip)}</div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-
-              {/* Rows */}
-              {grades.map((grade) => {
-                const c = gradeColor(grade);
-                return (
-                  <div
-                    key={grade}
-                    className="grid border-b border-border last:border-0"
-                    style={{ gridTemplateColumns: `64px repeat(${columns.length}, minmax(120px, 1fr))` }}
-                  >
-                    <div className="flex items-center gap-2 px-3 py-2">
-                      <span className="size-3 rounded-sm" style={{ background: c.solid }} />
-                      <span className="text-sm font-medium tnum">{grade}</span>
-                    </div>
-                    {columns.map((col) => {
-                      const items = cellJobs(grade, col);
-                      return (
-                        <div key={col.key} className="border-l border-border p-1.5">
-                          <div className="flex flex-wrap gap-1">
-                            {items.map((j) => (
-                              <JobChip key={j.id} job={j} familyColor={familyMap[j.familyId]?.color} isDark={isDark} onClick={() => router.push(`/jobs/${j.id}`)} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
             </div>
-          </div>
+          ) : (
+            // Segments as rows, grades as columns
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <div style={{ minWidth: 160 + gradesAsc.length * 88 }}>
+                <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: `160px repeat(${gradesAsc.length}, minmax(84px, 1fr))` }}>
+                  <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground">Band / Path</div>
+                  {gradesAsc.map((g) => (
+                    <div key={g} className="border-l border-border px-2 py-2.5">{gradeCell(g)}</div>
+                  ))}
+                </div>
+                {segments.map((seg) => (
+                  <div key={seg.key} className="grid border-b border-border last:border-0" style={{ gridTemplateColumns: `160px repeat(${gradesAsc.length}, minmax(84px, 1fr))` }}>
+                    <div className={cn("flex items-center px-3 py-2 text-xs font-semibold", seg.path === "M" ? "text-primary" : "text-info")}>{seg.label}</div>
+                    {gradesAsc.map((g) => (
+                      <div key={g} className="border-l border-border p-1.5">
+                        <div className="flex flex-wrap gap-1">{cellJobs(g, seg).map(chip)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Legend */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             <span className="font-medium">Grade ramp:</span>
             <div className="flex items-center gap-1">
@@ -191,17 +212,7 @@ export default function StructurePage() {
   );
 }
 
-function JobChip({
-  job,
-  familyColor,
-  isDark,
-  onClick,
-}: {
-  job: Job;
-  familyColor?: string;
-  isDark: boolean;
-  onClick: () => void;
-}) {
+function JobChip({ job, familyColor, isDark, onClick }: { job: Job; familyColor?: string; isDark: boolean; onClick: () => void }) {
   const grade = job.currentGrade!;
   const soft = isDark ? gradeColorSoftDark(grade) : gradeColor(grade);
   return (
@@ -219,9 +230,7 @@ function JobChip({
       <TooltipContent>
         <div className="space-y-0.5">
           <p className="font-medium">{job.title}</p>
-          <p className="text-muted-foreground">
-            {getBand(job.band as BandKey).name} · Grade {grade}
-          </p>
+          <p className="text-muted-foreground">{getBand(job.band as BandKey).name} · Grade {grade}</p>
           {job.confidence && <p className="text-muted-foreground capitalize">{job.confidence} confidence</p>}
         </div>
       </TooltipContent>

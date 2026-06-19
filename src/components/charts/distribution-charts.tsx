@@ -102,7 +102,7 @@ function Donut({ data, centerLabel }: { data: DonutDatum[]; centerLabel: string 
   const display = empty ? [{ name: "No data", value: 1, fill: "var(--muted)" }] : data;
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-7">
+    <div className="flex flex-col items-center gap-4">
       <div className="relative shrink-0" style={{ width: 168, height: 168 }}>
         <ResponsiveContainer width={168} height={168}>
           <PieChart>
@@ -142,7 +142,7 @@ function Donut({ data, centerLabel }: { data: DonutDatum[]; centerLabel: string 
         </div>
       </div>
 
-      <div className="w-full flex-1 space-y-1.5">
+      <div className="grid w-full gap-1">
         {data.map((d, i) => {
           const pct = total ? Math.round((d.value / total) * 100) : 0;
           return (
@@ -151,12 +151,12 @@ function Donut({ data, centerLabel }: { data: DonutDatum[]; centerLabel: string 
               type="button"
               onMouseEnter={() => setActive(i)}
               onMouseLeave={() => setActive(null)}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent"
             >
-              <span className="size-2.5 shrink-0 rounded-full" style={{ background: d.fill }} />
-              <span className="flex-1 truncate text-sm text-muted-foreground">{d.name}</span>
-              <span className="text-sm font-bold tnum">{d.value}</span>
-              <span className="w-9 text-right text-xs text-muted-foreground tnum">{pct}%</span>
+              <span className="size-2 shrink-0 rounded-full" style={{ background: d.fill }} />
+              <span className="flex-1 truncate text-xs text-muted-foreground">{d.name}</span>
+              <span className="text-xs font-bold tnum">{d.value}</span>
+              <span className="w-8 text-right text-[11px] text-muted-foreground tnum">{pct}%</span>
             </button>
           );
         })}
