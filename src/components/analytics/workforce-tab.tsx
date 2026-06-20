@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  Bar, BarChart, CartesianGrid, Cell, ComposedChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, TrendingDown, Wallet, Scale } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, Wallet, Scale } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures } from "@/hooks/use-pay-structures";
 import { downloadEmployeeTemplate, parseEmployees } from "@/lib/pay/employee-file";
@@ -18,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { GradeBadge } from "@/components/grade-badge";
 import { Markdown } from "@/components/markdown";
+import { PayRangeChart, AnalyticsDonut, Columns, HBars, ProfileRadar } from "@/components/analytics/charts";
 
 const STATUS_COLOR = { underpaid: "var(--destructive)", overpaid: "#F5A524", meets: "var(--success)" } as const;
 
@@ -167,66 +164,107 @@ export function WorkforceTab() {
       )}
 
       {/* Analysis */}
-      {analysis && <AnalysisView a={analysis} currency={currency} onInsights={runInsights} aiLoading={aiLoading} insights={insights} />}
+      {analysis && (
+        <AnalysisView
+          a={analysis}
+          assigned={assigned}
+          rows={base.rows}
+          currency={currency}
+          onInsights={runInsights}
+          aiLoading={aiLoading}
+          insights={insights}
+        />
+      )}
     </div>
   );
 }
 
-function AnalysisView({ a, currency, onInsights, aiLoading, insights }: { a: PayAnalysis; currency: string; onInsights: () => void; aiLoading: boolean; insights: string }) {
+function AnalysisView({
+  a,
+  assigned,
+  rows,
+  currency,
+  onInsights,
+  aiLoading,
+  insights,
+}: {
+  a: PayAnalysis;
+  assigned: AssignedEmployee[];
+  rows: import("@/lib/pay/scale").PayRow[];
+  currency: string;
+  onInsights: () => void;
+  aiLoading: boolean;
+  insights: string;
+}) {
   const money = (v: number) => formatMoney(v, currency);
+
+  const statusDonut = [
+    { name: "In range", value: a.meets, fill: "var(--success)" },
+    { name: "Underpaid", value: a.underpaid, fill: "var(--destructive)" },
+    { name: "Overpaid", value: a.overpaid, fill: "#F5A524" },
+  ];
+  const genderDonut = a.byGender.map((g) => ({
+    name: g.label,
+    value: g.count,
+    fill: g.label === "Male" ? "var(--primary)" : g.label === "Female" ? "#E879C8" : "var(--muted-foreground)",
+  }));
+  const bandDonut = a.byBand.map((b, i) => ({
+    name: b.label,
+    value: b.value,
+    fill: ["#6E56CF", "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#EF4444", "#14B8A6"][i % 9],
+  }));
+  const radar = a.byGrade
+    .slice()
+    .sort((x, y) => x.grade - y.grade)
+    .map((g) => ({ axis: `G${g.grade}`, value: Math.round(g.avgCompa * 100) }));
+  const genderPayBars = a.byGender.map((g) => ({ label: g.label, value: g.avgSalary }));
+
   return (
     <div className="space-y-6">
+      {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-6">
         <StatCard label="Headcount" value={a.headcount} icon={Users} hint={`${a.assigned} matched`} />
         <StatCard label="Total cost" value={money(a.totalCost)} icon={Wallet} />
         <StatCard label="Avg salary" value={money(a.avgSalary)} hint={`median ${money(a.medianSalary)}`} />
-        <StatCard label="Underpaid" value={a.underpaid} icon={TrendingDown} hint={`${a.overpaid} overpaid · ${a.meets} in range`} />
-        <StatCard label="Cost to minimum" value={money(a.budgetToMin)} icon={Wallet} hint="bring underpaid to range min" />
-        <StatCard label="Gender pay gap" value={`${a.genderPayGapMean}%`} icon={Scale} hint={`median ${a.genderPayGapMedian}%`} />
+        <StatCard label="Avg compa-ratio" value={`${Math.round(a.avgCompaRatio * 100)}%`} icon={Scale} />
+        <StatCard label="Cost to minimum" value={money(a.budgetToMin)} icon={Wallet} hint="bring underpaid to min" />
+        <StatCard label="Gender pay gap" value={`${a.genderPayGapMean}%`} icon={AlertTriangle} hint={`median ${a.genderPayGapMedian}%`} />
       </div>
 
+      {/* Signature pay range chart */}
+      <ChartCard title="Pay positioning — range (min→max), median line, and each employee">
+        <PayRangeChart assigned={assigned} rows={rows} currency={currency} />
+        <Legend
+          items={[
+            { c: "var(--success)", l: "In range" },
+            { c: "var(--destructive)", l: "Underpaid" },
+            { c: "#F5A524", l: "Overpaid" },
+            { c: "var(--primary)", l: "Range / median" },
+          ]}
+        />
+      </ChartCard>
+
+      {/* Donuts row */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <ChartCard title="Pay competitiveness"><AnalyticsDonut data={statusDonut} centerLabel="employees" /></ChartCard>
+        <ChartCard title="Headcount by gender"><AnalyticsDonut data={genderDonut} centerLabel="employees" /></ChartCard>
+        <ChartCard title="Headcount by band"><AnalyticsDonut data={bandDonut} centerLabel="employees" /></ChartCard>
+      </div>
+
+      {/* Columns + radar */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Pay vs structure (range min/mid vs actual avg)">
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={a.byGrade.map((g) => ({ grade: `G${g.grade}`, avg: g.avgSalary }))}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="grade" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={48} />
-              <Tooltip formatter={(v) => money(Number(v))} contentStyle={tooltipStyle} />
-              <Bar dataKey="avg" name="Avg salary" radius={[4, 4, 0, 0]} fill="var(--primary)" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        <ChartCard title="Compa-ratio distribution"><Columns data={a.compaDistribution} color="var(--info)" /></ChartCard>
+        <ChartCard title="Range placement (quartiles)"><Columns data={a.quartileDistribution} color="var(--primary)" /></ChartCard>
+        <ChartCard title="Average compa-ratio by grade (radar)"><ProfileRadar data={radar} /></ChartCard>
+        <ChartCard title="Average pay by gender"><Columns data={genderPayBars} color="#E879C8" money currency={currency} /></ChartCard>
+      </div>
 
-        <ChartCard title="Compa-ratio distribution">
-          <BucketBars data={a.compaDistribution} color="var(--info)" />
-        </ChartCard>
-
-        <ChartCard title="Range placement (quartiles)">
-          <BucketBars data={a.quartileDistribution} color="var(--primary)" />
-        </ChartCard>
-
-        <ChartCard title="Average pay by gender">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={a.byGender}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={48} />
-              <Tooltip formatter={(v) => money(Number(v))} contentStyle={tooltipStyle} />
-              <Bar dataKey="avgSalary" name="Avg salary" radius={[4, 4, 0, 0]}>
-                {a.byGender.map((_, i) => <Cell key={i} fill={["var(--primary)", "#E879C8", "var(--muted-foreground)"][i % 3]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Headcount by tenure">
-          <BucketBars data={a.tenureGroups} color="var(--success)" />
-        </ChartCard>
-
-        <ChartCard title="Headcount by age group">
-          <BucketBars data={a.ageGroups} color="#F5A524" />
-        </ChartCard>
+      {/* Tenure / age / department */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Headcount by tenure"><Columns data={a.tenureGroups} color="var(--success)" /></ChartCard>
+        <ChartCard title="Headcount by age group"><Columns data={a.ageGroups} color="#F5A524" /></ChartCard>
+        <ChartCard title="Headcount by department"><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.count }))} color="var(--primary)" /></ChartCard>
+        <ChartCard title="Average salary by department"><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.avgSalary }))} color="#06B6D4" money currency={currency} /></ChartCard>
       </div>
 
       {/* AI insights */}
@@ -243,7 +281,17 @@ function AnalysisView({ a, currency, onInsights, aiLoading, insights }: { a: Pay
   );
 }
 
-const tooltipStyle = { background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 };
+function Legend({ items }: { items: { c: string; l: string }[] }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      {items.map((i) => (
+        <span key={i.l} className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full" style={{ background: i.c }} /> {i.l}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -251,19 +299,5 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
       <CardHeader><CardTitle className="text-sm">{title}</CardTitle></CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
-  );
-}
-
-function BucketBars({ data, color }: { data: { label: string; value: number }[]; color: string }) {
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={28} />
-        <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.4 }} contentStyle={tooltipStyle} />
-        <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={color} />
-      </BarChart>
-    </ResponsiveContainer>
   );
 }
