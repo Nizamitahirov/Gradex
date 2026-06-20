@@ -192,14 +192,16 @@ function ScaleTable({ rows, currency }: { rows: { grade: number; ld: number; lq:
 
 function Metric({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="size-4" />
+    <div className="flex h-full flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-3.5" />
+        </div>
+        <p className="min-w-0 truncate text-xs font-medium text-muted-foreground" title={label}>{label}</p>
       </div>
-      <div className="min-w-0">
-        <p className="truncate text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-sm font-bold tnum">{value}</p>
-        {sub && <p className="truncate text-[11px] text-muted-foreground">{sub}</p>}
+      <div className="mt-auto">
+        <p className="truncate text-base font-bold leading-tight tnum" title={value}>{value}</p>
+        <p className="truncate text-[11px] text-muted-foreground">{sub ?? " "}</p>
       </div>
     </div>
   );
