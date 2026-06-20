@@ -12,6 +12,7 @@ import "server-only";
 import { NextRequest } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { AUTH_COOKIE, verifyToken, type AuthPayload } from "@/lib/auth";
+import { emptyPermissions, fullPermissions, type Action, type PermissionMap } from "@/lib/auth/permissions";
 
 export const COMPANY_COOKIE = "gradex_company";
 
@@ -45,6 +46,67 @@ export async function getUserAccess(userId: string): Promise<UserAccess> {
     role: d.role ?? "viewer",
     isAdmin,
   };
+}
+
+export interface UserContext {
+  userId: string;
+  isAdmin: boolean;
+  allCompanies: boolean;
+  companyAccess: string[];
+  roleId: string | null;
+  roleName: string;
+  permissions: PermissionMap;
+}
+
+/** Resolve a user's full permission context (role → permissions). */
+export async function getUserContext(userId: string): Promise<UserContext | null> {
+  const db = getAdminDb();
+  const userDoc = await db.collection("users").doc(userId).get();
+  if (!userDoc.exists) return null;
+  const d = userDoc.data() ?? {};
+  const legacyAdmin = d.role === "admin" || d.isAdmin === true;
+  const hasField = d.allCompanies !== undefined || Array.isArray(d.companyAccess);
+
+  let roleName = typeof d.role === "string" ? d.role : "viewer";
+  let permissions: PermissionMap = emptyPermissions();
+  let roleIsAdmin = false;
+  let roleAllCompanies = false;
+
+  if (d.roleId) {
+    const roleDoc = await db.collection("roles").doc(d.roleId).get();
+    if (roleDoc.exists) {
+      const r = roleDoc.data() ?? {};
+      roleName = r.name ?? roleName;
+      roleIsAdmin = r.isAdmin === true;
+      roleAllCompanies = r.isAdmin === true; // admin role implies all companies
+      permissions = (r.permissions as PermissionMap) ?? emptyPermissions();
+    }
+  }
+
+  const isAdmin = legacyAdmin || roleIsAdmin;
+  if (isAdmin) permissions = fullPermissions();
+
+  const allCompanies = isAdmin || roleAllCompanies || (hasField ? d.allCompanies === true : true);
+
+  return {
+    userId,
+    isAdmin,
+    allCompanies,
+    companyAccess: Array.isArray(d.companyAccess) ? (d.companyAccess as string[]) : [],
+    roleId: d.roleId ?? null,
+    roleName,
+    permissions,
+  };
+}
+
+/** Convenience: does the current request's actor hold a permission? */
+export async function actorCan(req: NextRequest, module: string, action: Action = "view"): Promise<boolean> {
+  const actor = getActor(req);
+  if (!actor) return false;
+  const ctx = await getUserContext(actor.userId);
+  if (!ctx) return false;
+  if (ctx.isAdmin) return true;
+  return ctx.permissions?.[module]?.[action] === true;
 }
 
 /** Org ids the user is allowed to see (all existing orgs for admins). */

@@ -11,23 +11,26 @@ import {
   Settings,
   Target,
   ChartColumnBig,
+  FileText,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo, GradexMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
 
 const NAV_MAIN = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/structure", label: "Grade Structure", icon: Grid3x3 },
-  { href: "/analytics", label: "Analytics", icon: ChartColumnBig },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "dashboard" },
+  { href: "/structure", label: "Grade Structure", icon: Grid3x3, perm: "structure" },
+  { href: "/analytics", label: "Analytics", icon: ChartColumnBig, perm: "analytics" },
 ];
 
 const NAV_MANAGE = [
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/families", label: "Families", icon: FolderTree },
-  { href: "/scoping", label: "Scoping", icon: Target },
+  { href: "/jobs", label: "Jobs", icon: Briefcase, perm: "jobs" },
+  { href: "/job-descriptions", label: "Job Descriptions", icon: FileText, perm: "jd" },
+  { href: "/families", label: "Families", icon: FolderTree, perm: "families" },
+  { href: "/scoping", label: "Scoping", icon: Target, perm: "scoping" },
 ];
 
 export function Sidebar({
@@ -38,6 +41,10 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
+  const { can } = useAuth();
+
+  const mainItems = NAV_MAIN.filter((i) => can(i.perm, "view"));
+  const manageItems = NAV_MANAGE.filter((i) => can(i.perm, "view"));
 
   const renderItem = (item: { href: string; label: string; icon: typeof Briefcase }) => {
     const active =
@@ -84,10 +91,10 @@ export function Sidebar({
       </div>
 
       <nav className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {!collapsed && <SectionLabel>Overview</SectionLabel>}
-        {NAV_MAIN.map(renderItem)}
-        {!collapsed && <SectionLabel className="mt-2">Manage</SectionLabel>}
-        {NAV_MANAGE.map(renderItem)}
+        {mainItems.length > 0 && !collapsed && <SectionLabel>Overview</SectionLabel>}
+        {mainItems.map(renderItem)}
+        {manageItems.length > 0 && !collapsed && <SectionLabel className="mt-2">Manage</SectionLabel>}
+        {manageItems.map(renderItem)}
       </nav>
 
       <div className="space-y-0.5 border-t border-sidebar-border pt-3">

@@ -7,6 +7,7 @@ import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures, usePayStructureMutations, type PayStructure } from "@/hooks/use-pay-structures";
 import { computePayScale, formatMoney, type PayRow, type PayScaleParams } from "@/lib/pay/scale";
 import { exportTableToExcel } from "@/lib/export/excel";
+import { ExplainWithAI } from "@/components/analytics/explain-with-ai";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,6 +109,7 @@ export function PayStructureTab() {
             </div>
             <ScaleTable rows={preview} currency={currency} />
             <div className="flex justify-end gap-2">
+              <ExplainWithAI title="Pay structure" kind="table" variant="button" data={() => ({ currency, rows: preview })} />
               <Button variant="outline" onClick={() => exportScale(preview, currency, name.trim() || "pay-structure")} disabled={preview.length === 0}>
                 <FileDown className="size-4" /> Export to Excel
               </Button>
@@ -230,7 +232,8 @@ function SavedStructure({ s, onDelete, onMakeBase }: { s: PayStructure; onDelete
             {sorted.length} grades · median range {formatMoney(lowest?.median ?? 0, cur)} → {formatMoney(highest?.median ?? 0, cur)}
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
+          <ExplainWithAI title={`Pay structure — ${s.name}`} kind="table" data={() => ({ currency: cur, rows: s.rows })} />
           <Button variant="ghost" size="sm" onClick={() => exportScale(s.rows, cur, s.name)}><FileDown className="size-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "View"}</Button>
           {!s.isBase && <Button variant="ghost" size="sm" onClick={onMakeBase}><Star className="size-4" /> Set base</Button>}

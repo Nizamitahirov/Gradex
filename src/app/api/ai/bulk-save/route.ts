@@ -4,6 +4,7 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
+import { createJdRecord } from "@/lib/server/jd";
 import { FieldValue } from "firebase-admin/firestore";
 
 interface IncomingJob {
@@ -103,6 +104,17 @@ export async function POST(req: NextRequest) {
 
       await jobRef.update({ currentEvaluationId: evalRef.id });
       await orgRef.collection("families").doc(familyId).update({ jobCount: FieldValue.increment(1) }).catch(() => {});
+
+      // Mirror the uploaded JD into the Job Descriptions hub.
+      if (j.jd && j.jd.trim()) {
+        await createJdRecord(orgRef, actor, {
+          title: j.title,
+          jobTitle: j.title,
+          content: j.jd,
+          source: "upload",
+          jobId: jobRef.id,
+        }).catch(() => {});
+      }
       created++;
     }
 
