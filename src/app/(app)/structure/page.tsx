@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Grid3x3, ArrowLeftRight, EyeOff } from "lucide-react";
+import { Grid3x3, ArrowLeftRight, EyeOff, FileDown } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -160,6 +161,17 @@ export default function StructurePage() {
               <Switch id="flagged" checked={onlyFlagged} onCheckedChange={setOnlyFlagged} />
               <Label htmlFor="flagged" className="cursor-pointer text-sm text-muted-foreground">Only flagged</Label>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={graded.length === 0}
+              onClick={async () => {
+                const { exportJobsToExcel } = await import("@/lib/export/excel");
+                await exportJobsToExcel(graded, families, data?.evaluations ?? [], org.name);
+              }}
+            >
+              <FileDown className="size-4" /> Export to Excel
+            </Button>
           </div>
 
           {view === "table" ? (
