@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
 import { FieldValue } from "firebase-admin/firestore";
 
 interface IncomingJob {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const jobs: IncomingJob[] = body.jobs ?? [];
     if (!jobs.length) return NextResponse.json({ success: false, error: "No jobs" }, { status: 400 });
 
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     // Resolve / create families by name (case-insensitive).

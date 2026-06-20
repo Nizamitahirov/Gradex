@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { AUTH_COOKIE, COOKIE_OPTIONS, signToken } from "@/lib/auth";
+import { COMPANY_COOKIE, accessibleOrgIds } from "@/lib/server/org";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,6 +51,8 @@ export async function POST(req: NextRequest) {
 
     await doc.ref.update({ lastLoginAt: Date.now() });
 
+    const ids = await accessibleOrgIds(doc.id);
+
     const res = NextResponse.json({
       success: true,
       data: {
@@ -59,10 +62,15 @@ export async function POST(req: NextRequest) {
           displayName: data.displayName,
           role: data.role,
           email: data.email ?? null,
+          mustChangePassword: data.mustChangePassword === true,
         },
       },
     });
     res.cookies.set(AUTH_COOKIE, token, COOKIE_OPTIONS);
+    // Default the active company to the user's first accessible one.
+    if (ids.length > 0) {
+      res.cookies.set(COMPANY_COOKIE, ids[0], { ...COOKIE_OPTIONS, httpOnly: false });
+    }
     return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

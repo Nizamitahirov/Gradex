@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
 
 export async function POST(req: NextRequest) {
   const actor = getActor(req);
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const name = String(body.name ?? "").trim();
     if (!name) return NextResponse.json({ success: false, error: "Name is required" }, { status: 400 });
 
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     const now = Date.now();

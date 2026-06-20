@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef } from "@/lib/server/org";
 import { gradeFromJD } from "@/lib/server/ai";
 import { gradeJob, type FactorSelections } from "@/lib/grading/engine";
 import { FACTOR_IDS } from "@/lib/grading/factors";
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const jd = String(body.jd ?? "");
     if (!jd.trim()) return NextResponse.json({ success: false, error: "JD text required" }, { status: 400 });
 
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     const orgSnap = orgRef ? await orgRef.get() : null;
     const scoping = orgSnap?.data()?.scoping;
     const companyGrade = scoping?.result?.companyGrade ?? 21;

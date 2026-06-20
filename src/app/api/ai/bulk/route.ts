@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef } from "@/lib/server/org";
 import { extractJob, gradeFromJD } from "@/lib/server/ai";
 import { gradeJob, type FactorSelections } from "@/lib/grading/engine";
 import { FACTOR_IDS } from "@/lib/grading/factors";
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const files: { filename: string; text: string }[] = (body.files ?? []).slice(0, 20);
     if (!files.length) return NextResponse.json({ success: false, error: "No files" }, { status: 400 });
 
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     const orgSnap = orgRef ? await orgRef.get() : null;
     const scoping = orgSnap?.data()?.scoping;
     const companyGrade = scoping?.result?.companyGrade ?? 21;
