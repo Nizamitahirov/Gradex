@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Star, Sparkles, Loader2, Table2, GitCompare } from "lucide-react";
+import { Plus, Trash2, Star, Sparkles, Loader2, Table2, GitCompare, FileDown, TrendingUp, MoveHorizontal, Coins, Layers } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures, usePayStructureMutations, type PayStructure } from "@/hooks/use-pay-structures";
-import { computePayScale, formatMoney, type PayScaleParams } from "@/lib/pay/scale";
+import { computePayScale, formatMoney, type PayRow, type PayScaleParams } from "@/lib/pay/scale";
+import { exportTableToExcel } from "@/lib/export/excel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,7 +107,10 @@ export function PayStructureTab() {
               <Badge variant="secondary">{gradesAsc.length} grades</Badge>
             </div>
             <ScaleTable rows={preview} currency={currency} />
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => exportScale(preview, currency, name.trim() || "pay-structure")} disabled={preview.length === 0}>
+                <FileDown className="size-4" /> Export to Excel
+              </Button>
               <Button onClick={save} disabled={create.isPending}>
                 {create.isPending ? <><Loader2 className="size-4 animate-spin" /> Saving…</> : <><Table2 className="size-4" /> Save {hasBase ? "scenario" : "current grade table"}</>}
               </Button>
@@ -124,6 +128,35 @@ export function PayStructureTab() {
       {(structures?.length ?? 0) >= 2 && <ComparePanel structures={structures!} />}
     </div>
   );
+}
+
+function exportScale(rows: PayRow[], currency: string, name: string) {
+  exportTableToExcel({
+    sheet: "Pay structure",
+    columns: [
+      { header: "Grade", key: "grade", width: 10 },
+      { header: "LD (lower decile)", key: "ld", width: 18 },
+      { header: "LQ (lower quartile)", key: "lq", width: 18 },
+      { header: "Median", key: "median", width: 16 },
+      { header: "UQ (upper quartile)", key: "uq", width: 18 },
+      { header: "UD (upper decile)", key: "ud", width: 18 },
+      { header: "Range spread %", key: "spread", width: 16 },
+      { header: "Currency", key: "currency", width: 10 },
+    ],
+    rows: [...rows]
+      .sort((a, b) => b.grade - a.grade)
+      .map((r) => ({
+        grade: `G${r.grade}`,
+        ld: r.ld,
+        lq: r.lq,
+        median: r.median,
+        uq: r.uq,
+        ud: r.ud,
+        spread: `${r.spreadPct ?? Math.round((r.ud / r.ld - 1) * 100)}%`,
+        currency,
+      })),
+    filename: `${name.replace(/\s+/g, "-").toLowerCase()}-pay-structure.xlsx`,
+  });
 }
 
 function ScaleTable({ rows, currency }: { rows: { grade: number; ld: number; lq: number; median: number; uq: number; ud: number }[]; currency: string }) {
@@ -157,22 +190,62 @@ function ScaleTable({ rows, currency }: { rows: { grade: number; ld: number; lq:
   );
 }
 
+function Metric({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-bold tnum">{value}</p>
+        {sub && <p className="truncate text-[11px] text-muted-foreground">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 function SavedStructure({ s, onDelete, onMakeBase }: { s: PayStructure; onDelete: () => void; onMakeBase: () => void }) {
   const [open, setOpen] = React.useState(false);
+  const sorted = [...s.rows].sort((a, b) => a.grade - b.grade);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  const cur = s.params.currency;
+
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base">
-          {s.name}
-          {s.isBase && <Badge variant="success"><Star className="size-3" /> Base</Badge>}
-        </CardTitle>
-        <div className="flex gap-2">
+      <CardHeader className="flex-row items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span className="truncate">{s.name}</span>
+            {s.isBase ? (
+              <Badge variant="success"><Star className="size-3" /> Base</Badge>
+            ) : (
+              <Badge variant="secondary">Scenario</Badge>
+            )}
+          </CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {sorted.length} grades · median range {formatMoney(lowest?.median ?? 0, cur)} → {formatMoney(highest?.median ?? 0, cur)}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button variant="ghost" size="sm" onClick={() => exportScale(s.rows, cur, s.name)}><FileDown className="size-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "View"}</Button>
           {!s.isBase && <Button variant="ghost" size="sm" onClick={onMakeBase}><Star className="size-4" /> Set base</Button>}
           {!s.isBase && <Button variant="ghost" size="sm" onClick={onDelete}><Trash2 className="size-4" /></Button>}
         </div>
       </CardHeader>
-      {open && <CardContent><ScaleTable rows={s.rows} currency={s.params.currency} /></CardContent>}
+      <CardContent className="space-y-4">
+        {/* Key metrics on the card surface */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <Metric icon={Coins} label="Start median" value={formatMoney(s.params.startMedian, cur)} sub={`grade ${lowest?.grade ?? "—"}`} />
+          <Metric icon={TrendingUp} label="Vertical step" value={`+${Math.round(s.params.verticalPct * 100)}%`} sub="per grade" />
+          <Metric icon={MoveHorizontal} label="Horizontal step" value={`+${Math.round(s.params.horizontalPct * 100)}%`} sub="per point" />
+          <Metric icon={Layers} label="Range spread" value={`${lowest?.spreadPct ?? 0}%`} sub="UD / LD" />
+          <Metric icon={Coins} label="Top median" value={formatMoney(highest?.median ?? 0, cur)} sub={`grade ${highest?.grade ?? "—"}`} />
+        </div>
+        {open && <ScaleTable rows={s.rows} currency={cur} />}
+      </CardContent>
     </Card>
   );
 }

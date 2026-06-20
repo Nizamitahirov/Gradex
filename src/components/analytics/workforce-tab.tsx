@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, Wallet, Scale } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, Wallet, Scale, FileDown, FileText } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures } from "@/hooks/use-pay-structures";
 import { downloadEmployeeTemplate, parseEmployees } from "@/lib/pay/employee-file";
 import { assignEmployees, analyzeWorkforce, type AssignedEmployee, type EmployeeInput, type PayAnalysis } from "@/lib/pay/analytics";
 import { formatMoney } from "@/lib/pay/scale";
+import { exportTableToExcel } from "@/lib/export/excel";
+import { buildPayAnalysisDocument } from "@/lib/export/pay-analysis-document";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,45 @@ export function WorkforceTab() {
   const runAnalysis = () => {
     if (!base) return;
     setAnalysis(analyzeWorkforce(assigned, base.rows));
+  };
+
+  const exportAssignment = () => {
+    exportTableToExcel({
+      sheet: "Workforce",
+      columns: [
+        { header: "Badge", key: "badge", width: 12 },
+        { header: "Employee", key: "name", width: 26 },
+        { header: "Position", key: "position", width: 26 },
+        { header: "Department", key: "department", width: 20 },
+        { header: "Division", key: "division", width: 20 },
+        { header: "Team", key: "team", width: 18 },
+        { header: "Gender", key: "gender", width: 10 },
+        { header: "Grade", key: "grade", width: 8 },
+        { header: "Band", key: "band", width: 22 },
+        { header: "Salary", key: "salary", width: 14 },
+        { header: "Compa-ratio", key: "compa", width: 14 },
+        { header: "Penetration", key: "penetration", width: 14 },
+        { header: "Zone", key: "zone", width: 10 },
+        { header: "Status", key: "status", width: 14 },
+      ],
+      rows: assigned.map((e) => ({
+        badge: e.badge,
+        name: e.name,
+        position: e.position,
+        department: e.department,
+        division: e.division ?? "",
+        team: e.team ?? "",
+        gender: e.gender ?? "",
+        grade: e.grade != null ? `G${e.grade}` : "—",
+        band: e.bandName ?? "—",
+        salary: e.salary,
+        compa: e.placement ? `${Math.round(e.placement.compaRatio * 100)}%` : "—",
+        penetration: e.placement ? `${Math.round(e.placement.penetration)}%` : "—",
+        zone: e.placement?.zone ?? "—",
+        status: e.placement?.status ?? "unmatched",
+      })),
+      filename: `${(org?.org?.name ?? "gradex").replace(/\s+/g, "-").toLowerCase()}-workforce.xlsx`,
+    });
   };
 
   const runInsights = async () => {
@@ -121,7 +162,12 @@ export function WorkforceTab() {
       {/* Assignment table */}
       {employees.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Workforce — grade assignment</CardTitle></CardHeader>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="text-base">Workforce — grade assignment</CardTitle>
+            <Button variant="outline" size="sm" onClick={exportAssignment}>
+              <FileDown className="size-4" /> Export to Excel
+            </Button>
+          </CardHeader>
           <CardContent>
             <div className="max-h-[420px] overflow-auto rounded-xl border border-border">
               <table className="w-full text-sm">
@@ -170,6 +216,7 @@ export function WorkforceTab() {
           assigned={assigned}
           rows={base.rows}
           currency={currency}
+          orgName={org?.org?.name ?? "Gradex"}
           onInsights={runInsights}
           aiLoading={aiLoading}
           insights={insights}
@@ -184,6 +231,7 @@ function AnalysisView({
   assigned,
   rows,
   currency,
+  orgName,
   onInsights,
   aiLoading,
   insights,
@@ -192,11 +240,23 @@ function AnalysisView({
   assigned: AssignedEmployee[];
   rows: import("@/lib/pay/scale").PayRow[];
   currency: string;
+  orgName: string;
   onInsights: () => void;
   aiLoading: boolean;
   insights: string;
 }) {
   const money = (v: number) => formatMoney(v, currency);
+
+  const downloadHtml = () => {
+    const { html, filename } = buildPayAnalysisDocument(a, currency, orgName);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const statusDonut = [
     { name: "In range", value: a.meets, fill: "var(--success)" },
@@ -221,6 +281,17 @@ function AnalysisView({
 
   return (
     <div className="space-y-6">
+      {/* Report header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Workforce & pay analysis</h2>
+          <p className="text-sm text-muted-foreground">{a.headcount} employees analyzed against the current grade table</p>
+        </div>
+        <Button variant="outline" onClick={downloadHtml}>
+          <FileText className="size-4" /> Download as HTML
+        </Button>
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Headcount" value={a.headcount} icon={Users} hint={`${a.assigned} matched`} />

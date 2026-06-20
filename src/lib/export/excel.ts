@@ -118,3 +118,53 @@ export async function exportJobsToExcel(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export interface ExcelColumn {
+  header: string;
+  key: string;
+  width?: number;
+}
+
+/** Generic styled .xlsx export for any table. */
+export async function exportTableToExcel(opts: {
+  sheet: string;
+  columns: ExcelColumn[];
+  rows: Record<string, unknown>[];
+  filename: string;
+}) {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Gradex";
+  wb.created = new Date();
+  const ws = wb.addWorksheet(opts.sheet.slice(0, 28), { views: [{ state: "frozen", ySplit: 1 }] });
+  ws.columns = opts.columns.map((c) => ({ header: c.header, key: c.key, width: c.width ?? 18 }));
+  for (const r of opts.rows) ws.addRow(r);
+
+  const header = ws.getRow(1);
+  header.height = 22;
+  header.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5B5BF5" } };
+    cell.font = { color: { argb: "FFFFFFFF" }, bold: true, size: 11 };
+    cell.alignment = { vertical: "middle" };
+    cell.border = { bottom: { style: "thin", color: { argb: "FF3B3BD0" } } };
+  });
+  ws.eachRow((row, n) => {
+    if (n === 1) return;
+    row.height = 18;
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = { vertical: "middle" };
+      cell.border = { bottom: { style: "hair", color: { argb: "FFE7E9F2" } } };
+      if (n % 2 === 0) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F6FB" } };
+    });
+  });
+  ws.autoFilter = { from: "A1", to: { row: 1, column: opts.columns.length } };
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = opts.filename.endsWith(".xlsx") ? opts.filename : `${opts.filename}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
