@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { GradeBadge } from "@/components/grade-badge";
 import { Markdown } from "@/components/markdown";
-import { PayRangeChart, AnalyticsDonut, Columns, HBars, ProfileRadar } from "@/components/analytics/charts";
+import { PayRangeChart, AnalyticsDonut, Columns, HBars, ProfileRadar, kfmt } from "@/components/analytics/charts";
 
 const STATUS_COLOR = { underpaid: "var(--destructive)", overpaid: "#F5A524", meets: "var(--success)" } as const;
 
@@ -222,12 +222,12 @@ function AnalysisView({
   return (
     <div className="space-y-6">
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Headcount" value={a.headcount} icon={Users} hint={`${a.assigned} matched`} />
-        <StatCard label="Total cost" value={money(a.totalCost)} icon={Wallet} />
-        <StatCard label="Avg salary" value={money(a.avgSalary)} hint={`median ${money(a.medianSalary)}`} />
-        <StatCard label="Avg compa-ratio" value={`${Math.round(a.avgCompaRatio * 100)}%`} icon={Scale} />
-        <StatCard label="Cost to minimum" value={money(a.budgetToMin)} icon={Wallet} hint="bring underpaid to min" />
+        <StatCard label="Total cost" value={kfmt(a.totalCost, currency)} icon={Wallet} hint={money(a.totalCost)} />
+        <StatCard label="Avg salary" value={kfmt(a.avgSalary, currency)} hint={`median ${kfmt(a.medianSalary, currency)}`} />
+        <StatCard label="Avg compa-ratio" value={`${Math.round(a.avgCompaRatio * 100)}%`} icon={Scale} hint="salary ÷ median" />
+        <StatCard label="Cost to minimum" value={kfmt(a.budgetToMin, currency)} icon={Wallet} hint="bring underpaid to min" />
         <StatCard label="Gender pay gap" value={`${a.genderPayGapMean}%`} icon={AlertTriangle} hint={`median ${a.genderPayGapMedian}%`} />
       </div>
 
