@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Sparkles } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useAuth } from "@/contexts/auth-context";
 import { useSaveScoping } from "@/hooks/use-mutations";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,8 @@ const STEPS = ["Revenue", "Employees", "Complexity & reach", "Result"];
 export default function ScopingPage() {
   const router = useRouter();
   const { data } = useOrgData();
+  const { can } = useAuth();
+  const canEdit = can("scoping", "edit");
   const org = data?.org;
   const saveScoping = useSaveScoping();
 
@@ -166,7 +169,9 @@ export default function ScopingPage() {
               {step < STEPS.length - 1 ? (
                 <Button onClick={() => setStep((x) => x + 1)}>Next <ArrowRight className="size-4" /></Button>
               ) : (
-                <Button onClick={onSave}><Check className="size-4" /> Save scoping</Button>
+                <Button onClick={onSave} disabled={!canEdit || saveScoping.isPending} title={canEdit ? undefined : "You don't have permission to edit scoping"}>
+                  <Check className="size-4" /> Save scoping
+                </Button>
               )}
             </div>
           </CardContent>

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getActiveOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, actorCan } from "@/lib/server/org";
 import { gradeFromJD } from "@/lib/server/ai";
 import { gradeJob, type FactorSelections } from "@/lib/grading/engine";
 import { FACTOR_IDS } from "@/lib/grading/factors";
@@ -12,6 +12,8 @@ import { BAND_KEYS, type BandKey } from "@/lib/grading/bands";
 /** AI fills the GGS questionnaire from a JD; the engine computes the grade. */
 export async function POST(req: NextRequest) {
   if (!getActor(req)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "grading", "create")))
+    return NextResponse.json({ success: false, error: "You don't have permission to grade jobs." }, { status: 403 });
   try {
     const body = await req.json();
     const jd = String(body.jd ?? "");

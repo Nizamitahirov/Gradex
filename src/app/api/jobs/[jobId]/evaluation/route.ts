@@ -2,11 +2,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, actorCan, logActivity } from "@/lib/server/org";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: string }> }) {
   const actor = getActor(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "grading", "create")))
+    return NextResponse.json({ success: false, error: "You don't have permission to grade jobs." }, { status: 403 });
 
   try {
     const { jobId } = await ctx.params;

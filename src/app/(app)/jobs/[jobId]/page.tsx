@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Gauge, History, Trash2, FileText, Download, FileCode2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useAuth } from "@/contexts/auth-context";
 import { useDeleteJob } from "@/hooks/use-mutations";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -57,7 +58,10 @@ export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const router = useRouter();
   const { data, isLoading } = useOrgData();
+  const { can } = useAuth();
   const deleteJob = useDeleteJob();
+  const canDelete = can("jobs", "delete");
+  const canGrade = can("grading", "create") || can("grading", "edit");
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [viewJd, setViewJd] = React.useState(false);
 
@@ -159,14 +163,18 @@ export default function JobDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={() => setConfirmDelete(true)}>
-            <Trash2 className="size-4" /> Delete
-          </Button>
-          <Button asChild>
-            <Link href={`/jobs/${job.id}/grade`}>
-              <Gauge className="size-4" /> {job.currentGrade != null ? "Re-grade" : "Grade now"}
-            </Link>
-          </Button>
+          {canDelete && (
+            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="size-4" /> Delete
+            </Button>
+          )}
+          {canGrade && (
+            <Button asChild>
+              <Link href={`/jobs/${job.id}/grade`}>
+                <Gauge className="size-4" /> {job.currentGrade != null ? "Re-grade" : "Grade now"}
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -197,7 +205,7 @@ export default function JobDetailPage() {
               icon={Gauge}
               title="Not graded yet"
               description="Run this job through the grading wizard to compute its global grade."
-              action={<Button asChild><Link href={`/jobs/${job.id}/grade`}>Grade now</Link></Button>}
+              action={canGrade ? <Button asChild><Link href={`/jobs/${job.id}/grade`}>Grade now</Link></Button> : undefined}
             />
           )}
         </div>
