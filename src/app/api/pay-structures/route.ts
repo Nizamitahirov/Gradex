@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getActiveOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, actorCan } from "@/lib/server/org";
 
 export async function GET(req: NextRequest) {
   if (!getActor(req)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const actor = getActor(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "analytics", "create")))
+    return NextResponse.json({ success: false, error: "You don't have permission to manage pay structures." }, { status: 403 });
   try {
     const body = await req.json();
     const orgRef = await getActiveOrgRef(req);

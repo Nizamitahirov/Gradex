@@ -2,10 +2,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getActiveOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, actorCan } from "@/lib/server/org";
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!getActor(req)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "analytics", "delete")))
+    return NextResponse.json({ success: false, error: "You don't have permission to delete pay structures." }, { status: 403 });
   const { id } = await ctx.params;
   const orgRef = await getActiveOrgRef(req);
   if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
@@ -15,6 +17,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!getActor(req)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "analytics", "edit")))
+    return NextResponse.json({ success: false, error: "You don't have permission to edit pay structures." }, { status: 403 });
   const { id } = await ctx.params;
   const body = await req.json();
   const orgRef = await getActiveOrgRef(req);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Briefcase, Plus, Sparkles, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useAuth } from "@/contexts/auth-context";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { JobsTable } from "@/components/jobs-table";
@@ -13,7 +14,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function JobsPage() {
   const { data, isLoading } = useOrgData();
+  const { can } = useAuth();
   const [exporting, setExporting] = React.useState(false);
+  const canCreate = can("jobs", "create");
 
   const exportExcel = async () => {
     if (!data) return;
@@ -39,16 +42,20 @@ export default function JobsPage() {
             <Button variant="outline" onClick={exportExcel} disabled={exporting || !data?.jobs.length}>
               <FileSpreadsheet className="size-4" /> {exporting ? "Exporting…" : "Export to Excel"}
             </Button>
-            <Button variant="secondary" asChild>
-              <Link href="/jobs/bulk">
-                <Sparkles className="size-4" /> Bulk AI grade
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link href="/jobs/new">
-                <Plus className="size-4" /> Add job
-              </Link>
-            </Button>
+            {canCreate && (
+              <>
+                <Button variant="secondary" asChild>
+                  <Link href="/jobs/bulk">
+                    <Sparkles className="size-4" /> Bulk AI grade
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/jobs/new">
+                    <Plus className="size-4" /> Add job
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -60,11 +67,13 @@ export default function JobsPage() {
           title="No jobs yet"
           description="Add your first job and run it through the banding + grading wizard."
           action={
-            <Button asChild>
-              <Link href="/jobs/new">
-                <Plus className="size-4" /> Add your first job
-              </Link>
-            </Button>
+            canCreate ? (
+              <Button asChild>
+                <Link href="/jobs/new">
+                  <Plus className="size-4" /> Add your first job
+                </Link>
+              </Button>
+            ) : undefined
           }
         />
       ) : (

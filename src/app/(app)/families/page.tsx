@@ -5,6 +5,7 @@ import Link from "next/link";
 import { FolderTree, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useAuth } from "@/contexts/auth-context";
 import { useCreateFamily } from "@/hooks/use-mutations";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -27,6 +28,8 @@ const PALETTE = ["#6E56CF", "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#14B8A6
 
 export default function FamiliesPage() {
   const { data, isLoading } = useOrgData();
+  const { can } = useAuth();
+  const canCreate = can("families", "create");
   const createFamily = useCreateFamily();
 
   const [open, setOpen] = React.useState(false);
@@ -59,7 +62,7 @@ export default function FamiliesPage() {
       <PageHeader
         title="Job families"
         description="Group related jobs into functions for organization, filtering and comparison."
-        action={<Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button>}
+        action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button> : undefined}
       />
 
       {isLoading ? (
@@ -71,7 +74,7 @@ export default function FamiliesPage() {
           icon={FolderTree}
           title="No families yet"
           description="Create your first job family — for example Engineering, Finance or Sales."
-          action={<Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button>}
+          action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, actorCan, logActivity } from "@/lib/server/org";
 import { createJdRecord } from "@/lib/server/jd";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -30,6 +30,8 @@ interface IncomingJob {
 export async function POST(req: NextRequest) {
   const actor = getActor(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!(await actorCan(req, "jobs", "create")))
+    return NextResponse.json({ success: false, error: "You don't have permission to create jobs." }, { status: 403 });
   try {
     const body = await req.json();
     const jobs: IncomingJob[] = body.jobs ?? [];

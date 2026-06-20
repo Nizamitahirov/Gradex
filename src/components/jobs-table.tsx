@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getBand } from "@/lib/grading/bands";
+import { ExplainWithAI } from "@/components/analytics/explain-with-ai";
 import { cn } from "@/lib/utils";
 import type { Family, Job } from "@/types";
 
@@ -134,6 +135,35 @@ export function JobsTable({
             <SelectItem value="draft">Draft</SelectItem>
           </SelectContent>
         </Select>
+        <div className="sm:ml-auto">
+          <ExplainWithAI
+            title="Jobs table"
+            kind="table"
+            variant="button"
+            data={() => ({
+              total: filtered.length,
+              byStatus: {
+                graded: filtered.filter((j) => j.status === "graded").length,
+                needsReview: filtered.filter((j) => j.status === "needs_review").length,
+                draft: filtered.filter((j) => j.status === "draft").length,
+              },
+              byFamily: Object.entries(
+                filtered.reduce<Record<string, number>>((acc, j) => {
+                  const n = familyMap[j.familyId]?.name ?? "—";
+                  acc[n] = (acc[n] ?? 0) + 1;
+                  return acc;
+                }, {}),
+              ).map(([family, count]) => ({ family, count })),
+              jobs: filtered.slice(0, 40).map((j) => ({
+                title: j.title,
+                grade: j.currentGrade,
+                band: getBand(j.band as never).name,
+                path: j.careerPath,
+                status: j.status,
+              })),
+            })}
+          />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border">

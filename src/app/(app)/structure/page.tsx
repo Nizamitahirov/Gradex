@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { Grid3x3, ArrowLeftRight, EyeOff, FileDown } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { Button } from "@/components/ui/button";
+import { ExplainWithAI } from "@/components/analytics/explain-with-ai";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -161,6 +162,32 @@ export default function StructurePage() {
               <Switch id="flagged" checked={onlyFlagged} onCheckedChange={setOnlyFlagged} />
               <Label htmlFor="flagged" className="cursor-pointer text-sm text-muted-foreground">Only flagged</Label>
             </div>
+            <ExplainWithAI
+              title="Grade structure"
+              kind="table"
+              data={() => ({
+                totalGraded: graded.length,
+                grades: [...new Set(graded.map((j) => j.currentGrade))].sort((a, b) => (b ?? 0) - (a ?? 0)),
+                byGrade: Object.entries(
+                  graded.reduce<Record<string, number>>((acc, j) => {
+                    const g = String(j.currentGrade);
+                    acc[g] = (acc[g] ?? 0) + 1;
+                    return acc;
+                  }, {}),
+                ).map(([grade, count]) => ({ grade, count })),
+                byPath: {
+                  IC: graded.filter((j) => j.careerPath === "IC").length,
+                  M: graded.filter((j) => j.careerPath === "M").length,
+                },
+                byBand: Object.entries(
+                  graded.reduce<Record<string, number>>((acc, j) => {
+                    const b = getBand(j.band as BandKey).name;
+                    acc[b] = (acc[b] ?? 0) + 1;
+                    return acc;
+                  }, {}),
+                ).map(([band, count]) => ({ band, count })),
+              })}
+            />
             <Button
               variant="outline"
               size="sm"
