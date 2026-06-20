@@ -142,6 +142,22 @@ export async function compareStructures(a: { name: string; rows: unknown }, b: {
   return chatText(system, user, 0.4);
 }
 
+export async function explainData(input: {
+  title: string;
+  kind: "chart" | "table";
+  data: unknown;
+  language: "en" | "az";
+}): Promise<string> {
+  const lang = input.language === "az" ? "Azerbaijani" : "English";
+  const system =
+    `You are a Total Rewards / HR analytics expert. Explain a ${input.kind} to a non-technical manager in ${lang}. ` +
+    "Write clear Markdown with: a one-line plain summary, then '## What it shows', " +
+    "'## Key takeaways' (3-5 bullets referencing the actual numbers), and '## What to watch / actions'. " +
+    `Be concise and practical. Respond ONLY in ${lang}.`;
+  const user = `${input.kind === "chart" ? "Chart" : "Table"} title: ${input.title}\n\nData (JSON):\n${JSON.stringify(input.data).slice(0, 7000)}`;
+  return chatText(system, user, 0.4);
+}
+
 export async function payInsights(summary: string): Promise<string> {
   const system =
     "You are a Total Rewards analyst. Given workforce pay-vs-structure statistics, write a sharp executive " +

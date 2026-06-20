@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
+import { createJdRecord } from "@/lib/server/jd";
 import { FieldValue } from "firebase-admin/firestore";
 
 interface IncomingJob {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const jobs: IncomingJob[] = body.jobs ?? [];
     if (!jobs.length) return NextResponse.json({ success: false, error: "No jobs" }, { status: 400 });
 
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     // Resolve / create families by name (case-insensitive).
@@ -103,6 +104,17 @@ export async function POST(req: NextRequest) {
 
       await jobRef.update({ currentEvaluationId: evalRef.id });
       await orgRef.collection("families").doc(familyId).update({ jobCount: FieldValue.increment(1) }).catch(() => {});
+
+      // Mirror the uploaded JD into the Job Descriptions hub.
+      if (j.jd && j.jd.trim()) {
+        await createJdRecord(orgRef, actor, {
+          title: j.title,
+          jobTitle: j.title,
+          content: j.jd,
+          source: "upload",
+          jobId: jobRef.id,
+        }).catch(() => {});
+      }
       created++;
     }
 

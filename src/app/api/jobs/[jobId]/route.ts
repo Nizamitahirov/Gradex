@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ jobId: string }> }) {
@@ -11,7 +11,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ jobId: s
 
   try {
     const { jobId } = await ctx.params;
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     const jobRef = orgRef.collection("jobs").doc(jobId);

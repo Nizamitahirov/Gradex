@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, Wallet, Scale, FileDown, FileText } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Download, Play, Loader2, Sparkles, Users, AlertTriangle, Wallet, Scale, FileDown, FileText, Coins } from "lucide-react";
+import { ExplainWithAI } from "@/components/analytics/explain-with-ai";
 import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures } from "@/hooks/use-pay-structures";
 import { downloadEmployeeTemplate, parseEmployees } from "@/lib/pay/employee-file";
@@ -164,9 +165,28 @@ export function WorkforceTab() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Workforce — grade assignment</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportAssignment}>
-              <FileDown className="size-4" /> Export to Excel
-            </Button>
+            <div className="flex items-center gap-1">
+              <ExplainWithAI
+                title="Workforce grade assignment"
+                kind="table"
+                data={() => ({
+                  count: assigned.length,
+                  byStatus: {
+                    underpaid: assigned.filter((e) => e.placement?.status === "underpaid").length,
+                    meets: assigned.filter((e) => e.placement?.status === "meets").length,
+                    overpaid: assigned.filter((e) => e.placement?.status === "overpaid").length,
+                  },
+                  sample: assigned.slice(0, 25).map((e) => ({
+                    position: e.position, grade: e.grade, salary: e.salary,
+                    compa: e.placement ? Math.round(e.placement.compaRatio * 100) : null,
+                    status: e.placement?.status ?? "unmatched",
+                  })),
+                })}
+              />
+              <Button variant="outline" size="sm" onClick={exportAssignment}>
+                <FileDown className="size-4" /> Export to Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="max-h-[420px] overflow-auto rounded-xl border border-border">
@@ -296,14 +316,17 @@ function AnalysisView({
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Headcount" value={a.headcount} icon={Users} hint={`${a.assigned} matched`} />
         <StatCard label="Total cost" value={kfmt(a.totalCost, currency)} icon={Wallet} hint={money(a.totalCost)} />
-        <StatCard label="Avg salary" value={kfmt(a.avgSalary, currency)} hint={`median ${kfmt(a.medianSalary, currency)}`} />
+        <StatCard label="Avg salary" value={kfmt(a.avgSalary, currency)} icon={Coins} hint={`median ${kfmt(a.medianSalary, currency)}`} />
         <StatCard label="Avg compa-ratio" value={`${Math.round(a.avgCompaRatio * 100)}%`} icon={Scale} hint="salary ÷ median" />
         <StatCard label="Cost to minimum" value={kfmt(a.budgetToMin, currency)} icon={Wallet} hint="bring underpaid to min" />
         <StatCard label="Gender pay gap" value={`${a.genderPayGapMean}%`} icon={AlertTriangle} hint={`median ${a.genderPayGapMedian}%`} />
       </div>
 
       {/* Signature pay range chart */}
-      <ChartCard title="Pay positioning — range (min→max), median line, and each employee">
+      <ChartCard
+        title="Pay positioning — range (min→max), median line, and each employee"
+        explain={{ currency, byGrade: a.byGrade, underpaid: a.underpaid, overpaid: a.overpaid, meets: a.meets }}
+      >
         <PayRangeChart assigned={assigned} rows={rows} currency={currency} />
         <Legend
           items={[
@@ -317,25 +340,25 @@ function AnalysisView({
 
       {/* Donuts row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <ChartCard title="Pay competitiveness"><AnalyticsDonut data={statusDonut} centerLabel="employees" /></ChartCard>
-        <ChartCard title="Headcount by gender"><AnalyticsDonut data={genderDonut} centerLabel="employees" /></ChartCard>
-        <ChartCard title="Headcount by band"><AnalyticsDonut data={bandDonut} centerLabel="employees" /></ChartCard>
+        <ChartCard title="Pay competitiveness" explain={statusDonut}><AnalyticsDonut data={statusDonut} centerLabel="employees" /></ChartCard>
+        <ChartCard title="Headcount by gender" explain={genderDonut}><AnalyticsDonut data={genderDonut} centerLabel="employees" /></ChartCard>
+        <ChartCard title="Headcount by band" explain={bandDonut}><AnalyticsDonut data={bandDonut} centerLabel="employees" /></ChartCard>
       </div>
 
       {/* Columns + radar */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Compa-ratio distribution"><Columns data={a.compaDistribution} color="var(--info)" /></ChartCard>
-        <ChartCard title="Range placement (quartiles)"><Columns data={a.quartileDistribution} color="var(--primary)" /></ChartCard>
-        <ChartCard title="Average compa-ratio by grade (radar)"><ProfileRadar data={radar} /></ChartCard>
-        <ChartCard title="Average pay by gender"><Columns data={genderPayBars} color="#E879C8" money currency={currency} /></ChartCard>
+        <ChartCard title="Compa-ratio distribution" explain={a.compaDistribution}><Columns data={a.compaDistribution} color="var(--info)" /></ChartCard>
+        <ChartCard title="Range placement (quartiles)" explain={a.quartileDistribution}><Columns data={a.quartileDistribution} color="var(--primary)" /></ChartCard>
+        <ChartCard title="Average compa-ratio by grade (radar)" explain={radar}><ProfileRadar data={radar} /></ChartCard>
+        <ChartCard title="Average pay by gender" explain={{ currency, data: genderPayBars }}><Columns data={genderPayBars} color="#E879C8" money currency={currency} /></ChartCard>
       </div>
 
       {/* Tenure / age / department */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Headcount by tenure"><Columns data={a.tenureGroups} color="var(--success)" /></ChartCard>
-        <ChartCard title="Headcount by age group"><Columns data={a.ageGroups} color="#F5A524" /></ChartCard>
-        <ChartCard title="Headcount by department"><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.count }))} color="var(--primary)" /></ChartCard>
-        <ChartCard title="Average salary by department"><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.avgSalary }))} color="#06B6D4" money currency={currency} /></ChartCard>
+        <ChartCard title="Headcount by tenure" explain={a.tenureGroups}><Columns data={a.tenureGroups} color="var(--success)" /></ChartCard>
+        <ChartCard title="Headcount by age group" explain={a.ageGroups}><Columns data={a.ageGroups} color="#F5A524" /></ChartCard>
+        <ChartCard title="Headcount by department" explain={{ currency, data: a.byDepartment }}><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.count }))} color="var(--primary)" /></ChartCard>
+        <ChartCard title="Average salary by department" explain={{ currency, data: a.byDepartment }}><HBars data={a.byDepartment.map((d) => ({ label: d.label, value: d.avgSalary }))} color="#06B6D4" money currency={currency} /></ChartCard>
       </div>
 
       {/* AI insights */}
@@ -364,10 +387,13 @@ function Legend({ items }: { items: { c: string; l: string }[] }) {
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ title, children, explain }: { title: string; children: React.ReactNode; explain?: unknown }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">{title}</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between gap-2">
+        <CardTitle className="text-sm">{title}</CardTitle>
+        {explain !== undefined && <ExplainWithAI title={title} kind="chart" data={explain} />}
+      </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
   );

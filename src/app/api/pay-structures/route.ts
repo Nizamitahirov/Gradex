@@ -2,11 +2,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef } from "@/lib/server/org";
+import { getActor, getActiveOrgRef } from "@/lib/server/org";
 
 export async function GET(req: NextRequest) {
   if (!getActor(req)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  const orgRef = await getPrimaryOrgRef();
+  const orgRef = await getActiveOrgRef(req);
   if (!orgRef) return NextResponse.json({ success: true, structures: [] });
   const snap = await orgRef.collection("payStructures").orderBy("createdAt", "asc").get();
   return NextResponse.json({ success: true, structures: snap.docs.map((d) => ({ id: d.id, ...d.data() })) });
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     const col = orgRef.collection("payStructures");

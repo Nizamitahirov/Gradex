@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, getPrimaryOrgRef, logActivity } from "@/lib/server/org";
+import { getActor, getActiveOrgRef, logActivity } from "@/lib/server/org";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: string }> }) {
   const actor = getActor(req);
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
   try {
     const { jobId } = await ctx.params;
     const body = await req.json();
-    const orgRef = await getPrimaryOrgRef();
+    const orgRef = await getActiveOrgRef(req);
     if (!orgRef) return NextResponse.json({ success: false, error: "No organization" }, { status: 404 });
 
     const jobRef = orgRef.collection("jobs").doc(jobId);

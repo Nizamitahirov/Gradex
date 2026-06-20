@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { can as canCheck, type Action, type PermissionMap } from "@/lib/auth/permissions";
 
 export interface AuthUser {
   id: string;
@@ -9,14 +10,20 @@ export interface AuthUser {
   displayName: string;
   role: string;
   email?: string | null;
+  mustChangePassword?: boolean;
+  isAdmin?: boolean;
+  allCompanies?: boolean;
+  roleName?: string;
+  permissions?: PermissionMap;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string; mustChangePassword?: boolean }>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  can: (module: string, action?: Action) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -25,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   const refresh = useCallback(async () => {
     try {
@@ -40,6 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  // Force a password change on first login before using the app.
+  useEffect(() => {
+    if (!loading && user?.mustChangePassword && pathname !== "/change-password") {
+      router.replace("/change-password");
+    }
+  }, [loading, user, pathname, router]);
+
   const login = useCallback(async (username: string, password: string) => {
     try {
       const res = await fetch("/api/auth/login", {
@@ -50,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (data.success && data.data?.user) {
         setUser(data.data.user);
-        return { success: true };
+        return { success: true, mustChangePassword: data.data.user.mustChangePassword === true };
       }
       return { success: false, error: data.error || "Sign-in failed" };
     } catch {
@@ -68,8 +83,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const can = useCallback(
+    (module: string, action: Action = "view") =>
+      canCheck({ isAdmin: user?.isAdmin === true, permissions: user?.permissions ?? {} }, module, action),
+    [user],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh, can }}>
       {children}
     </AuthContext.Provider>
   );

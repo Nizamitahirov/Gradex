@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LogOut, Search, User, Building2 } from "lucide-react";
-import { useOrgData } from "@/hooks/use-org-data";
+import { LogOut, Search, User } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import { CompanySwitcher } from "@/components/app-shell/company-switcher";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,13 +20,11 @@ import { initials } from "@/lib/utils";
 import { GlobalSearch } from "@/components/app-shell/global-search";
 
 export function Topbar() {
-  const { data } = useOrgData();
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = React.useState(false);
 
   const displayName = user?.displayName ?? "User";
   const userEmail = user?.email ?? user?.username ?? "";
-  const currentOrg = data?.org;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,11 +39,8 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Org */}
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-medium">
-        <Building2 className="size-4 text-muted-foreground" />
-        <span className="max-w-[160px] truncate">{currentOrg?.name ?? "Gradex"}</span>
-      </div>
+      {/* Active company */}
+      <CompanySwitcher />
 
       <div className="flex-1" />
 

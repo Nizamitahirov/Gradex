@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { AUTH_COOKIE, verifyToken } from "@/lib/auth";
+import { getUserContext } from "@/lib/server/org";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,6 +26,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Account is disabled" }, { status: 403 });
     }
 
+    const accessCtx = await getUserContext(doc.id);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -34,6 +37,11 @@ export async function GET(req: NextRequest) {
           displayName: data.displayName,
           role: data.role,
           email: data.email ?? null,
+          mustChangePassword: data.mustChangePassword === true,
+          isAdmin: accessCtx?.isAdmin ?? false,
+          allCompanies: accessCtx?.allCompanies ?? false,
+          roleName: accessCtx?.roleName ?? data.role ?? "viewer",
+          permissions: accessCtx?.permissions ?? {},
         },
       },
     });
