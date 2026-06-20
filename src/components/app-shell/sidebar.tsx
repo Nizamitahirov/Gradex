@@ -10,6 +10,7 @@ import {
   FolderTree,
   Settings,
   Target,
+  ChartColumnBig,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 const NAV_MAIN = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/structure", label: "Grade Structure", icon: Grid3x3 },
+  { href: "/analytics", label: "Analytics", icon: ChartColumnBig },
 ];
 
 const NAV_MANAGE = [

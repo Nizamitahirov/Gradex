@@ -131,3 +131,21 @@ export async function rewriteJD(currentJD: string, changeSummary: string): Promi
   const user = `Updated factor selections:\n${changeSummary}\n\nCurrent job description:\n"""\n${currentJD.slice(0, 12000)}\n"""\n\nReturn the full revised job description.`;
   return chatText(system, user, 0.5);
 }
+
+export async function compareStructures(a: { name: string; rows: unknown }, b: { name: string; rows: unknown }): Promise<string> {
+  const system =
+    "You are a Total Rewards / compensation consultant. Compare two pay structures (grade tables) and " +
+    "produce a concise, decision-useful analysis in Markdown with sections: '## Summary', " +
+    "'## Key differences' (bullets: midpoint progression, range spread, competitiveness, cost implications), " +
+    "'## Risks & considerations', and '## Recommendation'. Reference grades and figures where useful.";
+  const user = `Structure A — ${a.name}:\n${JSON.stringify(a.rows).slice(0, 6000)}\n\nStructure B — ${b.name}:\n${JSON.stringify(b.rows).slice(0, 6000)}`;
+  return chatText(system, user, 0.4);
+}
+
+export async function payInsights(summary: string): Promise<string> {
+  const system =
+    "You are a Total Rewards analyst. Given workforce pay-vs-structure statistics, write a sharp executive " +
+    "narrative in Markdown with sections: '## Headlines', '## Pay competitiveness', '## Pay equity', " +
+    "'## Cost to remediate', and '## Recommended actions' (prioritized bullets). Be specific and reference the numbers.";
+  return chatText(system, `Workforce analysis summary:\n${summary}`, 0.4);
+}
