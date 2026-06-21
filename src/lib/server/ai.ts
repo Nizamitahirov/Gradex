@@ -132,6 +132,32 @@ export async function rewriteJD(currentJD: string, changeSummary: string): Promi
   return chatText(system, user, 0.5);
 }
 
+/** Compare a JD against global best practice for the role. Returns Markdown. */
+export async function analyzeJD(jd: string, title?: string): Promise<string> {
+  const system =
+    "You are a senior HR job-architecture consultant. Compare the given Job Description against global best " +
+    "practice for this role. Write decision-useful Markdown with these sections: " +
+    "'## Overall assessment' (1-2 sentences + an approximate completeness score out of 100), " +
+    "'## Strengths' (what the JD does well), " +
+    "'## Missing — recommended additions' (concrete sections/bullets that best-practice JDs include but this one lacks), " +
+    "'## Excessive or unclear — consider trimming' (anything redundant, vague or off-level), " +
+    "'## Suggested best-practice structure' (the ideal section outline for this role). " +
+    "Be specific and reference the role.";
+  const user = `${title ? `Role: ${title}\n\n` : ""}Job description:\n"""\n${jd.slice(0, 12000)}\n"""`;
+  return chatText(system, user, 0.4);
+}
+
+/** Translate a JD to Azerbaijani, preserving Markdown structure. */
+export async function translateJD(jd: string, target: "az" | "en" = "az"): Promise<string> {
+  const lang = target === "az" ? "Azerbaijani" : "English";
+  const system =
+    `You are a professional HR translator. Translate the Job Description into ${lang}. ` +
+    "Preserve the Markdown structure exactly (translate the section headings too, keep the same heading levels and bullet lists). " +
+    "Use natural, professional HR terminology. Do not add commentary — return only the translated job description.";
+  const user = `Job description to translate into ${lang}:\n"""\n${jd.slice(0, 12000)}\n"""`;
+  return chatText(system, user, 0.3);
+}
+
 export async function compareStructures(a: { name: string; rows: unknown }, b: { name: string; rows: unknown }): Promise<string> {
   const system =
     "You are a Total Rewards / compensation consultant. Compare two pay structures (grade tables) and " +

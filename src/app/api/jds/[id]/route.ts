@@ -43,6 +43,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!orgRef) return NextResponse.json({ success: false, error: "No company" }, { status: 404 });
     const jdRef = orgRef.collection("jds").doc(id);
 
+    // Azerbaijani version update (separate field, no EN version bump).
+    if (typeof body.contentAz === "string") {
+      await jdRef.update({ contentAz: body.contentAz, contentAzUpdatedAt: Date.now(), updatedAt: Date.now() });
+      return NextResponse.json({ success: true });
+    }
+
     // Title-only update (no new version).
     if (typeof body.title === "string" && body.content === undefined) {
       await jdRef.update({ title: body.title.trim(), updatedAt: Date.now() });
@@ -51,8 +57,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const content = String(body.content ?? "").trim();
     if (!content) return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 });
-    const version = await addJdVersion(jdRef, actor, content, String(body.note ?? "Edited"), body.source ?? "manual");
-    if (typeof body.title === "string") await jdRef.update({ title: body.title.trim() });
+    const source = body.source === "ai" || body.source === "upload" ? body.source : "manual";
+    const version = await addJdVersion(jdRef, actor, content, String(body.note ?? "Edited"), source);
+    const extra: Record<string, unknown> = {};
+    if (typeof body.title === "string") extra.title = body.title.trim();
+    if (source === "ai") extra.aiRewritten = true;
+    if (Object.keys(extra).length) await jdRef.update(extra);
     await logActivity(orgRef, actor, { type: "jd_updated", targetType: "jd", targetId: id, summary: `Updated job description (v${version})` });
     return NextResponse.json({ success: true, version });
   } catch (err) {
