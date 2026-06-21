@@ -150,9 +150,9 @@ export default function StructurePage() {
             <div className="flex-1" />
 
             <Select value={familyId} onValueChange={setFamilyId}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Family" /></SelectTrigger>
+              <SelectTrigger className="w-44"><SelectValue placeholder="Department" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All families</SelectItem>
+                <SelectItem value="all">All departments</SelectItem>
                 {families.map((f) => (
                   <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                 ))}

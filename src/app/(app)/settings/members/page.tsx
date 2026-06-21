@@ -30,7 +30,7 @@ import type { Role } from "@/types";
 
 const ROLE_DESC: Record<Role, string> = {
   admin: "Full control — members, scoping, settings, delete.",
-  analyst: "Create & edit families, jobs and evaluations.",
+  analyst: "Create & edit departments, jobs and evaluations.",
   viewer: "Read-only access to org data.",
 };
 

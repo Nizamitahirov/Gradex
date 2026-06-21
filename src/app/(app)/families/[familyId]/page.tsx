@@ -22,8 +22,8 @@ export default function FamilyDetailPage() {
   if (!family) {
     return (
       <EmptyState
-        title="Family not found"
-        action={<Button onClick={() => router.push("/families")}><ArrowLeft className="size-4" /> Back to families</Button>}
+        title="Department not found"
+        action={<Button onClick={() => router.push("/families")}><ArrowLeft className="size-4" /> Back to departments</Button>}
       />
     );
   }
@@ -35,11 +35,11 @@ export default function FamilyDetailPage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => router.push("/families")}>
-        <ArrowLeft className="size-4" /> Families
+        <ArrowLeft className="size-4" /> Departments
       </Button>
       <PageHeader
         title={family.name}
-        description={family.description || "Jobs in this family."}
+        description={family.description || "Jobs in this department."}
         action={<Button asChild><Link href="/jobs/new"><Plus className="size-4" /> Add job</Link></Button>}
       />
 
@@ -52,8 +52,8 @@ export default function FamilyDetailPage() {
       {jobs.length === 0 ? (
         <EmptyState
           icon={Briefcase}
-          title="No jobs in this family"
-          description="Add a job and assign it to this family."
+          title="No jobs in this department"
+          description="Add a job and assign it to this department."
           action={<Button asChild><Link href="/jobs/new"><Plus className="size-4" /> Add job</Link></Button>}
         />
       ) : (

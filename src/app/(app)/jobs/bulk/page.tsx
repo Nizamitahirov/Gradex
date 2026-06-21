@@ -267,7 +267,7 @@ export default function BulkGradingPage() {
                       <div className="min-w-0 flex-1">
                         <Input value={r.title} onChange={(e) => update(i, { title: e.target.value })} className="h-8 font-medium" />
                       </div>
-                      <Input value={r.family} onChange={(e) => update(i, { family: e.target.value })} className="h-8 w-36" placeholder="Family" />
+                      <Input value={r.family} onChange={(e) => update(i, { family: e.target.value })} className="h-8 w-36" placeholder="Department" />
                       <Select value={r.band} onValueChange={(v) => update(i, { band: v as BandKey })}>
                         <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
                         <SelectContent>

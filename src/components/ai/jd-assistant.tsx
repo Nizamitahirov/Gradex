@@ -57,7 +57,7 @@ export function JDAssistant({
           </Button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          The AI drafts a JD from the job purpose, title, family, band and your factor selections.
+          The AI drafts a JD from the job purpose, title, department, band and your factor selections.
         </p>
       </div>
     );

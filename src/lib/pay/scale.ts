@@ -8,9 +8,13 @@
  * (spacing between adjacent reference points within a grade).
  */
 
+export type StartAnchor = "ld" | "lq" | "median" | "uq" | "ud";
+
 export interface PayScaleParams {
-  /** Median pay of the lowest grade — the anchor everything is derived from. */
+  /** The start number for the lowest grade, interpreted at `startAnchor`. */
   startMedian: number;
+  /** Which reference point the start number represents (default "median"). */
+  startAnchor?: StartAnchor;
   /** Grade-to-grade midpoint increase, e.g. 0.08 = +8% per grade. */
   verticalPct: number;
   /** Step between adjacent reference points (LQ→Median→UQ …), e.g. 0.07. */
@@ -35,13 +39,31 @@ function round(v: number, to: number) {
   return Math.max(0, Math.round(v / to) * to);
 }
 
+/** Convert a start number at a given anchor into the lowest grade's median. */
+function anchorToMedian(startValue: number, anchor: StartAnchor, h: number): number {
+  switch (anchor) {
+    case "ld":
+      return startValue * Math.pow(1 + h, 2);
+    case "lq":
+      return startValue * (1 + h);
+    case "uq":
+      return startValue / (1 + h);
+    case "ud":
+      return startValue / Math.pow(1 + h, 2);
+    case "median":
+    default:
+      return startValue;
+  }
+}
+
 /** Build the full pay scale for the given grades (ascending). */
 export function computePayScale(params: PayScaleParams, gradesAsc: number[]): PayRow[] {
   const { startMedian, verticalPct, horizontalPct } = params;
   const to = params.rounding ?? 50;
   const h = horizontalPct;
+  const startMedianValue = anchorToMedian(startMedian, params.startAnchor ?? "median", h);
   return gradesAsc.map((grade, i) => {
-    const median = startMedian * Math.pow(1 + verticalPct, i);
+    const median = startMedianValue * Math.pow(1 + verticalPct, i);
     const lq = median / (1 + h);
     const ld = median / Math.pow(1 + h, 2);
     const uq = median * (1 + h);

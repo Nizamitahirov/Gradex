@@ -36,6 +36,9 @@ export function useCreateJob() {
     (data: {
       title: string;
       familyId: string;
+      section?: string;
+      division?: string;
+      unit?: string;
       code?: string;
       description?: string;
       careerPath?: string;

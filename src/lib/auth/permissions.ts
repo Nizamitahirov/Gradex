@@ -17,7 +17,7 @@ export interface ModuleDef {
 export const PERMISSION_MODULES: ModuleDef[] = [
   { key: "dashboard", label: "Dashboard", actions: ["view"] },
   { key: "jobs", label: "Jobs", actions: ["view", "create", "edit", "delete"] },
-  { key: "families", label: "Job families", actions: ["view", "create", "edit", "delete"] },
+  { key: "families", label: "Departments", actions: ["view", "create", "edit", "delete"] },
   { key: "scoping", label: "Scoping", actions: ["view", "edit"] },
   { key: "grading", label: "Grading", actions: ["view", "create", "edit"] },
   { key: "structure", label: "Grade structure", actions: ["view"] },

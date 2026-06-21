@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Star, Sparkles, Loader2, Table2, GitCompare, FileDown, TrendingUp, MoveHorizontal, Coins, Layers } from "lucide-react";
 import { useOrgData } from "@/hooks/use-org-data";
 import { usePayStructures, usePayStructureMutations, type PayStructure } from "@/hooks/use-pay-structures";
-import { computePayScale, formatMoney, type PayRow, type PayScaleParams } from "@/lib/pay/scale";
+import { computePayScale, formatMoney, type PayRow, type PayScaleParams, type StartAnchor } from "@/lib/pay/scale";
 import { exportTableToExcel } from "@/lib/export/excel";
 import { ExplainWithAI } from "@/components/analytics/explain-with-ai";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GradeBadge } from "@/components/grade-badge";
 import { Markdown } from "@/components/markdown";
+
+const START_ANCHORS: { value: StartAnchor; label: string; short: string }[] = [
+  { value: "ld", label: "Minimum (LD)", short: "LD" },
+  { value: "lq", label: "Lower quartile (LQ)", short: "LQ" },
+  { value: "median", label: "Median", short: "Median" },
+  { value: "uq", label: "Upper quartile (UQ)", short: "UQ" },
+  { value: "ud", label: "Maximum (UD)", short: "UD" },
+];
 
 export function PayStructureTab() {
   const { data: org } = useOrgData();
@@ -33,13 +41,14 @@ export function PayStructureTab() {
   const hasBase = (structures ?? []).some((s) => s.isBase);
   const [name, setName] = React.useState("");
   const [startMedian, setStartMedian] = React.useState(24000);
+  const [startAnchor, setStartAnchor] = React.useState<StartAnchor>("median");
   const [verticalPct, setVerticalPct] = React.useState(12);
   const [horizontalPct, setHorizontalPct] = React.useState(8);
   const [currency, setCurrency] = React.useState(org?.org?.currency ?? "USD");
   const [showCreate, setShowCreate] = React.useState(false);
 
-  const params: PayScaleParams = { startMedian, verticalPct: verticalPct / 100, horizontalPct: horizontalPct / 100, currency, rounding: 50 };
-  const preview = React.useMemo(() => computePayScale(params, gradesAsc), [startMedian, verticalPct, horizontalPct, currency, gradesAsc]);
+  const params: PayScaleParams = { startMedian, startAnchor, verticalPct: verticalPct / 100, horizontalPct: horizontalPct / 100, currency, rounding: 50 };
+  const preview = React.useMemo(() => computePayScale(params, gradesAsc), [startMedian, startAnchor, verticalPct, horizontalPct, currency, gradesAsc]);
 
   const save = async () => {
     try {
@@ -75,13 +84,22 @@ export function PayStructureTab() {
         </CardHeader>
         {showCreate && (
           <CardContent className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>Name</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={hasBase ? "Scenario A" : "Current grade table"} />
               </div>
               <div className="space-y-1.5">
-                <Label>Start median (grade {gradesAsc[0]})</Label>
+                <Label>Start from (grade {gradesAsc[0]})</Label>
+                <Select value={startAnchor} onValueChange={(v) => setStartAnchor(v as StartAnchor)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {START_ANCHORS.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Start value ({START_ANCHORS.find((a) => a.value === startAnchor)?.short})</Label>
                 <Input type="number" value={startMedian} onChange={(e) => setStartMedian(Number(e.target.value))} className="tnum" />
               </div>
               <div className="space-y-1.5">
@@ -243,7 +261,7 @@ function SavedStructure({ s, onDelete, onMakeBase }: { s: PayStructure; onDelete
       <CardContent className="space-y-4">
         {/* Key metrics on the card surface */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          <Metric icon={Coins} label="Start median" value={formatMoney(s.params.startMedian, cur)} sub={`grade ${lowest?.grade ?? "—"}`} />
+          <Metric icon={Coins} label="Start value" value={formatMoney(s.params.startMedian, cur)} sub={`${START_ANCHORS.find((a) => a.value === (s.params.startAnchor ?? "median"))?.short ?? "Median"} · grade ${lowest?.grade ?? "—"}`} />
           <Metric icon={TrendingUp} label="Vertical step" value={`+${Math.round(s.params.verticalPct * 100)}%`} sub="per grade" />
           <Metric icon={MoveHorizontal} label="Horizontal step" value={`+${Math.round(s.params.horizontalPct * 100)}%`} sub="per point" />
           <Metric icon={Layers} label="Range spread" value={`${lowest?.spreadPct ?? 0}%`} sub="UD / LD" />
