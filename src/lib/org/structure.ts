@@ -1,13 +1,18 @@
 /**
  * Organization structure model — shared by client and server.
- * A company can be modelled in two ways:
- *  - "functional": Company → Department → Section → Division → Unit
- *  - "agile":      Company → Tribe → Squad → Chapter → Guild
- * Nodes form a solid-line hierarchy (parentId); functionalLinks are
- * dotted-line cross relationships.
+ *
+ * Node types are grouped into three families:
+ *  - corporate:  Parent Company → Subsidiary → Company
+ *  - non_agile:  Department → Section → Division → Unit
+ *  - agile:      Tribe / Functional Area → Squad → Chapter → Guild
+ *
+ * A single org can mix branches (e.g. a subsidiary running an agile tribe and a
+ * functional department side by side). Nodes form a solid-line hierarchy
+ * (parentId); functionalLinks are dotted-line cross relationships.
  */
 
 export type StructureMode = "functional" | "agile";
+export type TypeGroup = "corporate" | "non_agile" | "agile";
 
 export interface OrgUnit {
   id: string;
@@ -25,40 +30,65 @@ export interface OrgUnit {
 export interface UnitTypeDef {
   key: string;
   label: string;
-  level: number;
+  group: TypeGroup;
   color: string;
 }
 
-export const FUNCTIONAL_TYPES: UnitTypeDef[] = [
-  { key: "company", label: "Company", level: 0, color: "#5B5BF5" },
-  { key: "department", label: "Department", level: 1, color: "#3B82F6" },
-  { key: "section", label: "Section", level: 2, color: "#06B6D4" },
-  { key: "division", label: "Division", level: 3, color: "#10B981" },
-  { key: "unit", label: "Unit", level: 4, color: "#F59E0B" },
+export const UNIT_TYPES: UnitTypeDef[] = [
+  // Corporate
+  { key: "parent_company", label: "Parent Company", group: "corporate", color: "#5B5BF5" },
+  { key: "subsidiary", label: "Subsidiary", group: "corporate", color: "#7C6CF6" },
+  { key: "company", label: "Company", group: "corporate", color: "#6366F1" },
+  // Non-agile
+  { key: "department", label: "Department", group: "non_agile", color: "#3B82F6" },
+  { key: "section", label: "Section", group: "non_agile", color: "#06B6D4" },
+  { key: "division", label: "Division", group: "non_agile", color: "#10B981" },
+  { key: "unit", label: "Unit", group: "non_agile", color: "#F59E0B" },
+  // Agile
+  { key: "tribe", label: "Tribe", group: "agile", color: "#8B5CF6" },
+  { key: "functional_area", label: "Functional Area", group: "agile", color: "#A855F7" },
+  { key: "squad", label: "Squad", group: "agile", color: "#EC4899" },
+  { key: "chapter", label: "Chapter", group: "agile", color: "#06B6D4" },
+  { key: "guild", label: "Guild", group: "agile", color: "#16C098" },
 ];
 
-export const AGILE_TYPES: UnitTypeDef[] = [
-  { key: "company", label: "Company", level: 0, color: "#5B5BF5" },
-  { key: "tribe", label: "Tribe", level: 1, color: "#8B5CF6" },
-  { key: "squad", label: "Squad", level: 2, color: "#EC4899" },
-  { key: "chapter", label: "Chapter", level: 3, color: "#06B6D4" },
-  { key: "guild", label: "Guild", level: 4, color: "#16C098" },
-];
+export const GROUP_LABEL: Record<TypeGroup, string> = {
+  corporate: "Corporate",
+  non_agile: "Non-agile",
+  agile: "Agile",
+};
 
-export function typesFor(mode: StructureMode): UnitTypeDef[] {
-  return mode === "agile" ? AGILE_TYPES : FUNCTIONAL_TYPES;
+export function typeDef(key: string): UnitTypeDef {
+  return UNIT_TYPES.find((t) => t.key === key) ?? UNIT_TYPES[UNIT_TYPES.length - 1];
 }
 
-export function typeDef(mode: StructureMode, key: string): UnitTypeDef {
-  return typesFor(mode).find((t) => t.key === key) ?? typesFor(mode)[typesFor(mode).length - 1];
+export function typesByGroup(): { group: TypeGroup; label: string; types: UnitTypeDef[] }[] {
+  return (["corporate", "non_agile", "agile"] as TypeGroup[]).map((g) => ({
+    group: g,
+    label: GROUP_LABEL[g],
+    types: UNIT_TYPES.filter((t) => t.group === g),
+  }));
 }
 
-/** The default child type for a node of the given type (next level down). */
-export function childTypeOf(mode: StructureMode, parentType: string | null): string {
-  const types = typesFor(mode);
-  if (!parentType) return types[0].key;
-  const idx = types.findIndex((t) => t.key === parentType);
-  return types[Math.min(idx + 1, types.length - 1)].key;
+const NEXT_TYPE: Record<string, string> = {
+  parent_company: "subsidiary",
+  subsidiary: "department",
+  company: "department",
+  department: "section",
+  section: "division",
+  division: "unit",
+  unit: "unit",
+  tribe: "squad",
+  functional_area: "squad",
+  squad: "chapter",
+  chapter: "guild",
+  guild: "guild",
+};
+
+/** A sensible default child type for the given parent (overridable in the UI). */
+export function childTypeOf(parentType: string | null): string {
+  if (!parentType) return "parent_company";
+  return NEXT_TYPE[parentType] ?? "unit";
 }
 
 export interface OrgNode extends OrgUnit {

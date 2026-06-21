@@ -4,32 +4,31 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Trash2, Save } from "lucide-react";
 import { useOrgUnitMutations } from "@/hooks/use-org-units";
-import { typesFor, descendantIds, type OrgUnit, type StructureMode } from "@/lib/org/structure";
+import { typesByGroup, descendantIds, UNIT_TYPES, type OrgUnit } from "@/lib/org/structure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectLabel, SelectGroup, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const NONE = "__none__";
 
 export function UnitDialog({
-  unit, defaultParentId, defaultType, mode, units, canDelete, onClose,
+  unit, defaultParentId, defaultType, units, canDelete, onClose,
 }: {
   unit: OrgUnit | null;
   defaultParentId?: string | null;
   defaultType?: string;
-  mode: StructureMode;
   units: OrgUnit[];
   canDelete: boolean;
   onClose: () => void;
 }) {
   const editing = !!unit;
   const { create, update, remove } = useOrgUnitMutations();
-  const types = typesFor(mode);
+  const groups = typesByGroup();
 
   const [name, setName] = React.useState(unit?.name ?? "");
-  const [type, setType] = React.useState(unit?.type ?? defaultType ?? types[0].key);
+  const [type, setType] = React.useState(unit?.type ?? defaultType ?? UNIT_TYPES[0].key);
   const [parentId, setParentId] = React.useState<string>(unit?.parentId ?? defaultParentId ?? NONE);
   const [headcount, setHeadcount] = React.useState(unit?.headcount ?? 0);
   const [vacancies, setVacancies] = React.useState(unit?.vacancies ?? 0);
@@ -96,7 +95,14 @@ export function UnitDialog({
               <Label>Type</Label>
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{types.map((t) => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {groups.map((g) => (
+                    <SelectGroup key={g.group}>
+                      <SelectLabel>{g.label}</SelectLabel>
+                      {g.types.map((t) => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">

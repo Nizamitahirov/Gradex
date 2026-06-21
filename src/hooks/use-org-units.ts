@@ -34,6 +34,7 @@ export function useOrgUnitMutations() {
   const update = useMutation({ mutationFn: ({ id, ...u }: Partial<OrgUnit> & { id: string }) => api(`/api/org-units/${id}`, "PATCH", u), onSuccess: invalidate });
   const remove = useMutation({ mutationFn: (id: string) => api(`/api/org-units/${id}`, "DELETE"), onSuccess: invalidate });
   const setMode = useMutation({ mutationFn: (structureMode: StructureMode) => api("/api/org-units", "PATCH", { structureMode }), onSuccess: invalidate });
+  const bulk = useMutation({ mutationFn: (payload: { nodes: unknown[]; replace: boolean }) => api("/api/org-units/bulk", "POST", payload), onSuccess: invalidate });
 
-  return { create, update, remove, setMode };
+  return { create, update, remove, setMode, bulk };
 }
