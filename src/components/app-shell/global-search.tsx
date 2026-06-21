@@ -48,7 +48,7 @@ export function GlobalSearch({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search jobs and families…"
+            placeholder="Search jobs and departments…"
             className="h-12 border-0 px-0 shadow-none focus-visible:ring-0"
           />
         </div>
@@ -74,7 +74,7 @@ export function GlobalSearch({
           )}
           {familyMatches.length > 0 && (
             <div>
-              <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Families</p>
+              <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Departments</p>
               {familyMatches.map((f) => (
                 <button
                   key={f.id}

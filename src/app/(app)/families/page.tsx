@@ -41,7 +41,7 @@ export default function FamiliesPage() {
     if (!name.trim()) return;
     try {
       await createFamily.mutateAsync({ name: name.trim(), description: description.trim(), color });
-      toast.success(`Family "${name.trim()}" created`);
+      toast.success(`Department "${name.trim()}" created`);
       setName("");
       setDescription("");
       setColor(PALETTE[0]);
@@ -60,9 +60,9 @@ export default function FamiliesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Job families"
-        description="Group related jobs into functions for organization, filtering and comparison."
-        action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button> : undefined}
+        title="Departments"
+        description="Group related jobs into departments for organization, filtering and comparison."
+        action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New department</Button> : undefined}
       />
 
       {isLoading ? (
@@ -72,9 +72,9 @@ export default function FamiliesPage() {
       ) : !data || data.families.length === 0 ? (
         <EmptyState
           icon={FolderTree}
-          title="No families yet"
-          description="Create your first job family — for example Engineering, Finance or Sales."
-          action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New family</Button> : undefined}
+          title="No departments yet"
+          description="Create your first department — for example Engineering, Finance or Sales."
+          action={canCreate ? <Button onClick={() => setOpen(true)}><Plus className="size-4" /> New department</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -110,8 +110,8 @@ export default function FamiliesPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New job family</DialogTitle>
-            <DialogDescription>Families group related jobs for analysis and comparison.</DialogDescription>
+            <DialogTitle>New department</DialogTitle>
+            <DialogDescription>Departments group related jobs for analysis and comparison.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -141,7 +141,7 @@ export default function FamiliesPage() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={create} disabled={createFamily.isPending}>
-              {createFamily.isPending ? "Creating…" : "Create family"}
+              {createFamily.isPending ? "Creating…" : "Create department"}
             </Button>
           </DialogFooter>
         </DialogContent>

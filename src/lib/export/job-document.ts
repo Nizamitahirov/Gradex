@@ -69,6 +69,10 @@ export function buildJobDocument(opts: {
     </div>
 
     <div class="meta">
+      ${family ? `<div><span>Department</span><b>${esc(family.name)}</b></div>` : ""}
+      ${job.section ? `<div><span>Section</span><b>${esc(job.section)}</b></div>` : ""}
+      ${job.division ? `<div><span>Division</span><b>${esc(job.division)}</b></div>` : ""}
+      ${job.unit ? `<div><span>Unit</span><b>${esc(job.unit)}</b></div>` : ""}
       <div><span>Status</span><b>${esc(job.status)}</b></div>
       <div><span>Confidence</span><b>${esc(job.confidence ?? "—")}</b></div>
       <div><span>Band window</span><b>${evaluation?.bandWindow ? `${evaluation.bandWindow.lo}–${evaluation.bandWindow.hi}` : "—"}</b></div>

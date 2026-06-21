@@ -22,6 +22,9 @@ export default function NewJobPage() {
 
   const [title, setTitle] = React.useState("");
   const [familyId, setFamilyId] = React.useState("");
+  const [section, setSection] = React.useState("");
+  const [division, setDivision] = React.useState("");
+  const [unit, setUnit] = React.useState("");
   const [code, setCode] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [reportsTo, setReportsTo] = React.useState("none");
@@ -60,13 +63,16 @@ export default function NewJobPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !familyId) {
-      toast.error("Title and family are required.");
+      toast.error("Title and department are required.");
       return;
     }
     try {
       const res = (await createJob.mutateAsync({
         title: title.trim(),
         familyId,
+        section: section.trim() || undefined,
+        division: division.trim() || undefined,
+        unit: unit.trim() || undefined,
         code: code.trim() || undefined,
         description: description.trim(),
         careerPath: "IC",
@@ -96,9 +102,9 @@ export default function NewJobPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Family</Label>
+                <Label>Department</Label>
                 <Select value={familyId} onValueChange={setFamilyId}>
-                  <SelectTrigger><SelectValue placeholder="Choose a family" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Choose a department" /></SelectTrigger>
                   <SelectContent>
                     {data.families.map((f) => (
                       <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
@@ -109,6 +115,20 @@ export default function NewJobPage() {
               <div className="space-y-2">
                 <Label htmlFor="code">Job code (optional)</Label>
                 <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. FIN-204" />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="section">Section (optional)</Label>
+                <Input id="section" value={section} onChange={(e) => setSection(e.target.value)} placeholder="e.g. Reporting" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="division">Division (optional)</Label>
+                <Input id="division" value={division} onChange={(e) => setDivision(e.target.value)} placeholder="e.g. Corporate" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unit">Unit (optional)</Label>
+                <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="e.g. Treasury" />
               </div>
             </div>
             <div className="space-y-2">

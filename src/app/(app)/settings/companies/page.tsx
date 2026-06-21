@@ -60,7 +60,7 @@ export default function CompaniesSettingsPage() {
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="text-base">Companies</CardTitle>
-            <CardDescription>Each company has its own jobs, families, scoping, structure and analytics. New companies start empty.</CardDescription>
+            <CardDescription>Each company has its own jobs, departments, scoping, structure and analytics. New companies start empty.</CardDescription>
           </div>
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus className="size-4" /> New company
@@ -110,7 +110,7 @@ export default function CompaniesSettingsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New company</DialogTitle>
-            <DialogDescription>Creates a fresh, empty company. You&apos;ll set up scoping, families and jobs from scratch.</DialogDescription>
+            <DialogDescription>Creates a fresh, empty company. You&apos;ll set up scoping, departments and jobs from scratch.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

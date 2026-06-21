@@ -34,7 +34,10 @@ export async function exportJobsToExcel(
 
   const columns = [
     { header: "Job title", key: "title", width: 30 },
-    { header: "Family", key: "family", width: 18 },
+    { header: "Department", key: "family", width: 18 },
+    { header: "Section", key: "section", width: 16 },
+    { header: "Division", key: "division", width: 16 },
+    { header: "Unit", key: "unit", width: 16 },
     { header: "Band", key: "band", width: 22 },
     { header: "Path", key: "path", width: 16 },
     { header: "Grade", key: "grade", width: 8 },
@@ -67,6 +70,9 @@ export async function exportJobsToExcel(
     ws.addRow({
       title: job.title,
       family: familyName(job.familyId),
+      section: job.section ?? "",
+      division: job.division ?? "",
+      unit: job.unit ?? "",
       band: `${band.code} · ${band.name}`,
       path: job.careerPath === "M" ? "Management" : "Individual Contributor",
       grade: job.currentGrade ?? "",

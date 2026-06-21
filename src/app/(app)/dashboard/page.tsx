@@ -179,7 +179,7 @@ export default function DashboardPage() {
               )}
             </h1>
             <p className="mt-2 text-sm text-white/80">
-              {families.length} families · {graded.length} jobs graded
+              {families.length} departments · {graded.length} jobs graded
               {flagged.length > 0
                 ? ` · ${flagged.length} need review.`
                 : weekGraded > 0
@@ -232,7 +232,7 @@ export default function DashboardPage() {
         <StatSparkCard icon={CheckCircle2} accent="pink" label="Graded" value={graded.length} total={jobs.length} points={gradedSpark} delta={`${pctGraded}%`} />
         <StatSparkCard icon={Gauge} accent="info" label="Average grade" value={avgGrade || "—"} points={avgSpark} delta={`${scoped.lo}–${scoped.hi}`} />
         <StatSparkCard icon={Crown} accent="success" label="Highest grade" value={maxGrade || "—"} points={maxSpark} delta={`CEO ${scoped.hi}`} />
-        <StatSparkCard icon={FolderTree} accent="cyan" label="Families" value={families.length} points={familiesSpark} delta={`+${families.length}`} />
+        <StatSparkCard icon={FolderTree} accent="cyan" label="Departments" value={families.length} points={familiesSpark} delta={`+${families.length}`} />
         <StatSparkCard icon={AlertTriangle} accent="warn" label="Need review" value={flagged.length} total={jobs.length} points={reviewSpark} delta={flagged.length ? `${flagged.length}` : "0"} deltaDir={flagged.length ? "down" : "up"} />
       </div>
 
@@ -244,7 +244,7 @@ export default function DashboardPage() {
               <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <FolderTree className="size-4" />
               </span>
-              Job families
+              Departments
             </CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/families">View all <ArrowRight className="size-4" /></Link>
@@ -252,7 +252,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {familyStats.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">No families yet.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No departments yet.</p>
             )}
             {familyStats.map(({ family, count, avg, min, max }) => (
               <Link
@@ -329,7 +329,7 @@ export default function DashboardPage() {
         <ChartCard icon={Gauge} title="Confidence level">
           <ConfidenceDonut jobs={graded} />
         </ChartCard>
-        <ChartCard icon={FolderTree} title="Average grade by family">
+        <ChartCard icon={FolderTree} title="Average grade by department">
           {graded.length ? <FamilyComparisonChart jobs={jobs} families={families} /> : <EmptyChart />}
         </ChartCard>
       </div>

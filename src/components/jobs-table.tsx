@@ -40,6 +40,9 @@ export function JobsTable({
 
   const [q, setQ] = React.useState("");
   const [familyId, setFamilyId] = React.useState("all");
+  const [section, setSection] = React.useState("all");
+  const [division, setDivision] = React.useState("all");
+  const [unit, setUnit] = React.useState("all");
   const [path, setPath] = React.useState("all");
   const [status, setStatus] = React.useState("all");
   const [sort, setSort] = React.useState<SortKey>("grade");
@@ -50,11 +53,20 @@ export function JobsTable({
     [families],
   );
 
+  const distinct = (key: "section" | "division" | "unit") =>
+    [...new Set(jobs.map((j) => (j[key] ?? "").trim()).filter(Boolean))].sort();
+  const sections = React.useMemo(() => distinct("section"), [jobs]);
+  const divisions = React.useMemo(() => distinct("division"), [jobs]);
+  const units = React.useMemo(() => distinct("unit"), [jobs]);
+
   const filtered = React.useMemo(() => {
     const ql = q.trim().toLowerCase();
     const rows = jobs.filter((j) => {
       if (ql && !j.title.toLowerCase().includes(ql)) return false;
       if (familyId !== "all" && j.familyId !== familyId) return false;
+      if (section !== "all" && (j.section ?? "") !== section) return false;
+      if (division !== "all" && (j.division ?? "") !== division) return false;
+      if (unit !== "all" && (j.unit ?? "") !== unit) return false;
       if (path !== "all" && j.careerPath !== path) return false;
       if (status !== "all" && j.status !== status) return false;
       return true;
@@ -72,7 +84,7 @@ export function JobsTable({
           return a.status.localeCompare(b.status) * mult;
       }
     });
-  }, [jobs, q, familyId, path, status, sort, dir]);
+  }, [jobs, q, familyId, section, division, unit, path, status, sort, dir]);
 
   const toggleSort = (key: SortKey) => {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -102,15 +114,42 @@ export function JobsTable({
         {!hideFamilyFilter && (
           <Select value={familyId} onValueChange={setFamilyId}>
             <SelectTrigger className="sm:w-40">
-              <SelectValue placeholder="Family" />
+              <SelectValue placeholder="Department" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All families</SelectItem>
+              <SelectItem value="all">All departments</SelectItem>
               {families.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
                   {f.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )}
+        {sections.length > 0 && (
+          <Select value={section} onValueChange={setSection}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Section" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sections</SelectItem>
+              {sections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        {divisions.length > 0 && (
+          <Select value={division} onValueChange={setDivision}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Division" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All divisions</SelectItem>
+              {divisions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        {units.length > 0 && (
+          <Select value={unit} onValueChange={setUnit}>
+            <SelectTrigger className="sm:w-36"><SelectValue placeholder="Unit" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All units</SelectItem>
+              {units.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
@@ -147,17 +186,21 @@ export function JobsTable({
                 needsReview: filtered.filter((j) => j.status === "needs_review").length,
                 draft: filtered.filter((j) => j.status === "draft").length,
               },
-              byFamily: Object.entries(
+              byDepartment: Object.entries(
                 filtered.reduce<Record<string, number>>((acc, j) => {
                   const n = familyMap[j.familyId]?.name ?? "—";
                   acc[n] = (acc[n] ?? 0) + 1;
                   return acc;
                 }, {}),
-              ).map(([family, count]) => ({ family, count })),
+              ).map(([department, count]) => ({ department, count })),
               jobs: filtered.slice(0, 40).map((j) => ({
                 title: j.title,
                 grade: j.currentGrade,
                 band: getBand(j.band as never).name,
+                department: familyMap[j.familyId]?.name ?? "—",
+                section: j.section ?? "",
+                division: j.division ?? "",
+                unit: j.unit ?? "",
                 path: j.careerPath,
                 status: j.status,
               })),
@@ -173,7 +216,7 @@ export function JobsTable({
               <tr>
                 {sortHead("grade", "Grade", "w-20")}
                 {sortHead("title", "Title")}
-                <th className="px-3 py-2 text-left font-medium">Family</th>
+                <th className="px-3 py-2 text-left font-medium">Department</th>
                 {sortHead("band", "Band")}
                 <th className="px-3 py-2 text-left font-medium">Confidence</th>
                 {sortHead("status", "Status")}

@@ -29,7 +29,7 @@ const NAV_MAIN = [
 const NAV_MANAGE = [
   { href: "/jobs", label: "Jobs", icon: Briefcase, perm: "jobs" },
   { href: "/job-descriptions", label: "Job Descriptions", icon: FileText, perm: "jd" },
-  { href: "/families", label: "Families", icon: FolderTree, perm: "families" },
+  { href: "/families", label: "Departments", icon: FolderTree, perm: "families" },
   { href: "/scoping", label: "Scoping", icon: Target, perm: "scoping" },
 ];
 
