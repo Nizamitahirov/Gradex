@@ -12,6 +12,7 @@ import {
   Target,
   ChartColumnBig,
   FileText,
+  Network,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV_MANAGE = [
   { href: "/jobs", label: "Jobs", icon: Briefcase, perm: "jobs" },
   { href: "/job-descriptions", label: "Job Descriptions", icon: FileText, perm: "jd" },
   { href: "/families", label: "Departments", icon: FolderTree, perm: "families" },
+  { href: "/organization", label: "Organization", icon: Network, perm: "families" },
   { href: "/scoping", label: "Scoping", icon: Target, perm: "scoping" },
 ];
 
