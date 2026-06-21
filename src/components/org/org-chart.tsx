@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Users, UserPlus, Briefcase, Plus, Pencil, Link2 } from "lucide-react";
-import { buildTree, descendantIds, typeDef, type OrgUnit, type OrgNode, type StructureMode } from "@/lib/org/structure";
+import {
+  Users, UserPlus, Briefcase, Plus, Pencil, Link2,
+  ZoomIn, ZoomOut, Scan, Maximize2, Minimize2, ChevronsDownUp, ChevronsUpDown, RotateCcw,
+} from "lucide-react";
+import { buildTree, descendantIds, typeDef, type OrgUnit, type OrgNode } from "@/lib/org/structure";
 import { cn } from "@/lib/utils";
 
 interface Props {
   units: OrgUnit[];
-  mode: StructureMode;
   canEdit: boolean;
   positionsFor: (u: OrgUnit) => number;
   onAddChild: (parent: OrgUnit) => void;
@@ -17,28 +19,35 @@ interface Props {
 
 interface LinkLine { id: string; x1: number; y1: number; x2: number; y2: number }
 
-export function OrgChart({ units, mode, canEdit, positionsFor, onAddChild, onEdit, onReparent }: Props) {
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 2;
+
+export function OrgChart({ units, canEdit, positionsFor, onAddChild, onEdit, onReparent }: Props) {
   const roots = React.useMemo(() => buildTree(units), [units]);
-  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   const nodeRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const [zoom, setZoom] = React.useState(1);
+  const [pan, setPan] = React.useState({ x: 24, y: 16 });
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
+  const [fullscreen, setFullscreen] = React.useState(false);
+  const [panning, setPanning] = React.useState(false);
   const [links, setLinks] = React.useState<LinkLine[]>([]);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null);
-  const [size, setSize] = React.useState({ w: 0, h: 0 });
 
   const blocked = React.useMemo(() => (dragId ? new Set([dragId, ...descendantIds(units, dragId)]) : new Set<string>()), [dragId, units]);
+  const withChildren = React.useMemo(() => new Set(units.filter((u) => units.some((c) => c.parentId === u.id)).map((u) => u.id)), [units]);
 
-  // Measure node centers and compute functional (dotted) link coordinates.
+  // ---- functional (dotted) link measurement, in content (un-scaled) coords ----
   const measure = React.useCallback(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const wr = wrap.getBoundingClientRect();
+    const content = contentRef.current;
+    if (!content) return;
+    const cr = content.getBoundingClientRect();
     const center = (el: HTMLDivElement) => {
       const r = el.getBoundingClientRect();
-      return {
-        x: r.left - wr.left + wrap.scrollLeft + r.width / 2,
-        y: r.top - wr.top + wrap.scrollTop + r.height / 2,
-      };
+      return { x: (r.left - cr.left + r.width / 2) / zoom, y: (r.top - cr.top + r.height / 2) / zoom };
     };
     const out: LinkLine[] = [];
     for (const u of units) {
@@ -49,34 +58,70 @@ export function OrgChart({ units, mode, canEdit, positionsFor, onAddChild, onEdi
         const toEl = nodeRefs.current.get(t);
         if (!toEl) continue;
         const b = center(toEl);
-        out.push({ id: `${u.id}-${t}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+        out.push({ id: `${u.id}-${t}`, ...{ x1: a.x, y1: a.y, x2: b.x, y2: b.y } });
       }
     }
     setLinks(out);
-    setSize({ w: wrap.scrollWidth, h: wrap.scrollHeight });
-  }, [units]);
+  }, [units, zoom]);
 
-  React.useLayoutEffect(() => {
-    measure();
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(wrap);
-    return () => ro.disconnect();
+  React.useLayoutEffect(() => { measure(); }, [measure, collapsed, fullscreen]);
+  React.useEffect(() => {
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [measure]);
+
+  // ---- pan (drag empty space) ----
+  const panState = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.target !== viewportRef.current && e.target !== contentRef.current) return; // only background
+    panState.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+    setPanning(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!panState.current) return;
+    setPan({ x: panState.current.px + (e.clientX - panState.current.x), y: panState.current.py + (e.clientY - panState.current.y) });
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    panState.current = null;
+    setPanning(false);
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  };
+
+  const zoomBy = (d: number) => setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z + d) * 100) / 100)));
+  const reset = () => { setZoom(1); setPan({ x: 24, y: 16 }); };
+
+  const fit = React.useCallback(() => {
+    const vp = viewportRef.current, content = contentRef.current;
+    if (!vp || !content) return;
+    const cw = content.scrollWidth, ch = content.scrollHeight;
+    if (!cw || !ch) return;
+    const z = Math.min((vp.clientWidth - 48) / cw, (vp.clientHeight - 48) / ch, 1);
+    const nz = Math.max(MIN_ZOOM, Math.round(z * 100) / 100);
+    setZoom(nz);
+    setPan({ x: Math.max(16, (vp.clientWidth - cw * nz) / 2), y: 16 });
+  }, []);
+
+  const expandAll = () => setCollapsed(new Set());
+  const collapseAll = () => setCollapsed(new Set(withChildren));
+  const toggleCollapse = (id: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const drop = (targetId: string | null) => {
     if (!dragId) return;
-    if (targetId && blocked.has(targetId)) return; // no cycles / self
+    if (targetId && blocked.has(targetId)) return;
     onReparent(dragId, targetId);
-    setDragId(null);
-    setOverId(null);
+    setDragId(null); setOverId(null);
   };
 
+  const countDescendants = (node: OrgNode): number => node.children.reduce((s, c) => s + 1 + countDescendants(c), 0);
+
   const renderNode = (node: OrgNode) => {
-    const td = typeDef(mode, node.type);
+    const td = typeDef(node.type);
     const isOver = overId === node.id && dragId && !blocked.has(node.id);
     const isBlocked = !!dragId && blocked.has(node.id);
+    const hasKids = node.children.length > 0;
+    const isCollapsed = collapsed.has(node.id);
     return (
       <li key={node.id}>
         <div
@@ -88,7 +133,7 @@ export function OrgChart({ units, mode, canEdit, positionsFor, onAddChild, onEdi
           onDragLeave={() => setOverId((c) => (c === node.id ? null : c))}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); drop(node.id); }}
           className={cn(
-            "group relative w-[208px] rounded-xl border bg-card text-left shadow-[var(--shadow-card)] transition-all",
+            "group relative w-[210px] rounded-xl border bg-card text-left shadow-[var(--shadow-card)] transition-all",
             canEdit && "cursor-grab active:cursor-grabbing",
             isOver ? "border-primary ring-2 ring-primary/40" : "border-border",
             isBlocked && "opacity-40",
@@ -113,49 +158,97 @@ export function OrgChart({ units, mode, canEdit, positionsFor, onAddChild, onEdi
               {!!node.functionalLinks?.length && <span className="inline-flex items-center gap-1 text-primary" title="Functional links"><Link2 className="size-3" /> {node.functionalLinks.length}</span>}
             </div>
           </div>
+          {hasKids && (
+            <button
+              onClick={() => toggleCollapse(node.id)}
+              className="absolute -bottom-3 left-1/2 z-10 flex size-6 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-[10px] font-bold text-muted-foreground shadow-sm hover:text-foreground"
+              title={isCollapsed ? "Expand" : "Collapse"}
+            >
+              {isCollapsed ? `+${countDescendants(node)}` : "–"}
+            </button>
+          )}
         </div>
-        {node.children.length > 0 && <ul>{node.children.map(renderNode)}</ul>}
+        {hasKids && !isCollapsed && <ul>{node.children.map(renderNode)}</ul>}
       </li>
     );
   };
 
+  const Toolbar = (
+    <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-xl border border-border bg-card/95 p-1 shadow-md backdrop-blur">
+      <CtrlBtn onClick={() => zoomBy(-0.1)} title="Zoom out"><ZoomOut className="size-4" /></CtrlBtn>
+      <button onClick={reset} className="min-w-[44px] rounded-md px-1 text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground" title="Reset zoom">{Math.round(zoom * 100)}%</button>
+      <CtrlBtn onClick={() => zoomBy(0.1)} title="Zoom in"><ZoomIn className="size-4" /></CtrlBtn>
+      <span className="mx-0.5 h-5 w-px bg-border" />
+      <CtrlBtn onClick={fit} title="Fit / center"><Scan className="size-4" /></CtrlBtn>
+      <CtrlBtn onClick={reset} title="Reset view"><RotateCcw className="size-4" /></CtrlBtn>
+      <span className="mx-0.5 h-5 w-px bg-border" />
+      <CtrlBtn onClick={collapseAll} title="Collapse all"><ChevronsDownUp className="size-4" /></CtrlBtn>
+      <CtrlBtn onClick={expandAll} title="Expand all"><ChevronsUpDown className="size-4" /></CtrlBtn>
+      <span className="mx-0.5 h-5 w-px bg-border" />
+      <CtrlBtn onClick={() => setFullscreen((f) => !f)} title={fullscreen ? "Exit full screen" : "Full screen"}>{fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</CtrlBtn>
+    </div>
+  );
+
   return (
-    <div className="rounded-2xl border border-border bg-muted/20 p-4">
+    <div className={cn("rounded-2xl border border-border bg-muted/20", fullscreen && "fixed inset-0 z-[60] rounded-none bg-background p-3")}>
       <style>{`
         .octree, .octree ul { display:flex; list-style:none; margin:0; padding:0; }
         .octree { justify-content:center; padding-top:4px; }
-        .octree ul { padding-top:24px; position:relative; justify-content:center; }
-        .octree li { display:flex; flex-direction:column; align-items:center; position:relative; padding:24px 10px 0; }
-        .octree li::before, .octree li::after { content:''; position:absolute; top:0; right:50%; border-top:2px solid var(--border); width:50%; height:24px; }
+        .octree ul { padding-top:28px; position:relative; justify-content:center; }
+        .octree li { display:flex; flex-direction:column; align-items:center; position:relative; padding:28px 12px 0; }
+        .octree li::before, .octree li::after { content:''; position:absolute; top:0; right:50%; border-top:2px solid var(--border); width:50%; height:28px; }
         .octree li::after { right:auto; left:50%; border-left:2px solid var(--border); }
         .octree li:only-child::before, .octree li:only-child::after { display:none; }
         .octree li:first-child::before, .octree li:last-child::after { border:0 none; }
         .octree li:last-child::before { border-right:2px solid var(--border); border-radius:0 8px 0 0; }
         .octree li:first-child::after { border-radius:8px 0 0 0; }
-        .octree ul ul::before { content:''; position:absolute; top:0; left:50%; border-left:2px solid var(--border); width:0; height:24px; }
+        .octree ul ul::before { content:''; position:absolute; top:0; left:50%; border-left:2px solid var(--border); width:0; height:28px; }
         .octree > li { padding-top:0; }
         .octree > li::before, .octree > li::after { display:none; }
       `}</style>
-      <div ref={wrapRef} className="relative overflow-auto" style={{ maxHeight: "70vh" }} onDragOver={(e) => { if (dragId) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); drop(null); }}>
-        {links.length > 0 && (
-          <svg className="pointer-events-none absolute left-0 top-0" width={size.w} height={size.h} style={{ zIndex: 0 }}>
-            {links.map((l) => (
-              <g key={l.id}>
-                <path d={`M ${l.x1} ${l.y1} C ${l.x1} ${(l.y1 + l.y2) / 2}, ${l.x2} ${(l.y1 + l.y2) / 2}, ${l.x2} ${l.y2}`} fill="none" stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.55} />
-              </g>
-            ))}
-          </svg>
-        )}
-        <ul className="octree relative" style={{ zIndex: 1 }}>
-          {roots.map(renderNode)}
-        </ul>
-        {roots.length === 0 && <p className="py-16 text-center text-sm text-muted-foreground">No structure yet. Add a company-level node to begin.</p>}
+      <div className="relative" style={{ height: fullscreen ? "calc(100vh - 24px)" : "72vh" }}>
+        {Toolbar}
+        <div
+          ref={viewportRef}
+          className="h-full w-full touch-none overflow-hidden rounded-xl"
+          style={{ cursor: panning ? "grabbing" : "default" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onDragOver={(e) => { if (dragId) e.preventDefault(); }}
+          onDrop={(e) => { e.preventDefault(); drop(null); }}
+        >
+          <div
+            ref={contentRef}
+            className="relative inline-block origin-top-left"
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+          >
+            <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: 0 }}>
+              {links.map((l) => (
+                <path key={l.id} d={`M ${l.x1} ${l.y1} C ${l.x1} ${(l.y1 + l.y2) / 2}, ${l.x2} ${(l.y1 + l.y2) / 2}, ${l.x2} ${l.y2}`} fill="none" stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.55} />
+              ))}
+            </svg>
+            {roots.length > 0 ? (
+              <ul className="octree relative" style={{ zIndex: 1 }}>{roots.map(renderNode)}</ul>
+            ) : (
+              <p className="p-16 text-center text-sm text-muted-foreground">No structure yet.</p>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-6 bg-border" /> Reporting line</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-0 w-6 border-t-2 border-dashed border-primary" /> Functional link</span>
-        {canEdit && <span>· Drag a card onto another to re-assign its parent</span>}
+        {canEdit && <span>· Drag a card onto another to re-assign its parent · drag empty space to pan</span>}
       </div>
     </div>
+  );
+}
+
+function CtrlBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={title} className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+      {children}
+    </button>
   );
 }
