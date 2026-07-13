@@ -124,40 +124,40 @@ export function is5FSAvailable(companyGrade: number): boolean {
 }
 
 /**
- * Grade window for a band given the Company Grade C (the CEO grade).
- * Lower bands (1, 2, 3IC, 3M) are fixed; upper bands shift with C. Documented
- * approximation of the GGS grade maps (exact maps are WTW-proprietary visuals).
- * Always clamped to [1, C].
+ * Reference grade map at Company Grade 20 (WTW GGS 4.2 grade map, guide p.18).
+ * Per the guide, the lower bands (1, 2, 3IC, 3M) are size-independent, while the
+ * upper bands (4IC, 4M, 5FS, 5BS, CEO) shift with the Company Grade ("grade
+ * shift"). NOTE: these Company-20 windows should be verified against the exact
+ * grade map on page 18 and adjusted here if they differ — everything derives
+ * from this single table.
+ */
+const BASE_COMPANY_GRADE = 20;
+const BASE_WINDOWS: Record<BandKey, { lo: number; hi: number }> = {
+  "1": { lo: 6, hi: 8 },
+  "2": { lo: 9, hi: 11 },
+  "3IC": { lo: 12, hi: 14 },
+  "3M": { lo: 13, hi: 15 },
+  "4IC": { lo: 15, hi: 17 },
+  "4M": { lo: 15, hi: 17 },
+  "5FS": { lo: 17, hi: 18 },
+  "5BS": { lo: 18, hi: 19 },
+  ceo: { lo: 20, hi: 20 },
+};
+/** Bands whose grade window shifts with the Company Grade. */
+const SHIFTING_BANDS = new Set<BandKey>(["4IC", "4M", "5FS", "5BS", "ceo"]);
+
+/**
+ * Grade window for a band given the Company Grade C (the CEO grade), anchored to
+ * the Company-Grade-20 grade map and shifted for the upper bands. Clamped to [1, C].
  */
 export function bandGradeWindow(band: BandKey, companyGrade: number): { lo: number; hi: number } {
   const C = companyGrade;
-  const clamp = (lo: number, hi: number) => {
-    let L = Math.max(1, Math.min(lo, C));
-    const H = Math.max(1, Math.min(hi, C));
-    if (L > H) L = H;
-    return { lo: L, hi: H };
-  };
-
-  switch (band) {
-    case "1":
-      return clamp(1, 4);
-    case "2":
-      return clamp(3, 8);
-    case "3IC":
-      return clamp(7, 12);
-    case "3M":
-      return clamp(8, 12);
-    case "4IC":
-      return clamp(C - 8, C - 4);
-    case "4M":
-      return clamp(C - 7, C - 4);
-    case "5FS":
-      return clamp(C - 4, C - 3);
-    case "5BS":
-      return clamp(C - 2, C - 1);
-    case "ceo":
-      return clamp(C, C);
-  }
+  const base = BASE_WINDOWS[band];
+  const shift = SHIFTING_BANDS.has(band) ? C - BASE_COMPANY_GRADE : 0;
+  let lo = Math.max(1, Math.min(base.lo + shift, C));
+  const hi = Math.max(1, Math.min(base.hi + shift, C));
+  if (lo > hi) lo = hi;
+  return { lo, hi };
 }
 
 /**

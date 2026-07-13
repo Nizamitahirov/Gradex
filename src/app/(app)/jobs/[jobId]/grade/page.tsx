@@ -19,6 +19,9 @@ import { AnimatedNumber } from "@/components/animated-number";
 import { GradeBadge } from "@/components/grade-badge";
 import { GradeExplainer } from "@/components/grade-explainer";
 import { JDAssistant } from "@/components/ai/jd-assistant";
+import { PdfReference } from "@/components/grading/pdf-reference";
+import { factorLevels } from "@/lib/grading/band-factors";
+import { FACTOR_REFERENCES, BANDING_REFERENCE, BAND_REFERENCE, GRADE_MAP_REFERENCE } from "@/lib/grading/references";
 import { cn } from "@/lib/utils";
 import {
   FACTORS,
@@ -127,6 +130,21 @@ export default function GradeWizardPage() {
 
   const window = candidateWindow(effectiveBand, scoped, companyGrade);
 
+  // Levels are band-specific — drop any selection that is out of range for the
+  // current band (e.g. after changing the band).
+  React.useEffect(() => {
+    setD((prev) => {
+      let changed = false;
+      const next = { ...prev.selections };
+      for (const f of FACTORS) {
+        const max = factorLevels(effectiveBand, f.id).length - 1;
+        const v = next[f.id];
+        if (v !== undefined && v > max) { delete next[f.id]; changed = true; }
+      }
+      return changed ? { ...prev, selections: next } : prev;
+    });
+  }, [effectiveBand]);
+
   if (!org || !job) return null;
 
   const set = (patch: Partial<DraftState>) => setD((prev) => ({ ...prev, ...patch }));
@@ -206,6 +224,7 @@ export default function GradeWizardPage() {
                       <p className="mt-1 text-sm text-muted-foreground">
                         Answer the questions to place the job in a GGS band. You can override the result below.
                       </p>
+                      <PdfReference reference={BANDING_REFERENCE} className="mt-2" />
                     </div>
 
                     <div className="space-y-3">
@@ -243,7 +262,10 @@ export default function GradeWizardPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Band (override if needed)</Label>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label>Band (override if needed)</Label>
+                        <PdfReference reference={GRADE_MAP_REFERENCE} />
+                      </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {BANDS.map((b) => {
                           const w = bandGradeWindow(b.key, companyGrade);
@@ -274,6 +296,7 @@ export default function GradeWizardPage() {
                 {isFactorStep && (() => {
                   const factor = FACTORS[factorIndex];
                   const selected = d.selections[factor.id];
+                  const levels = factorLevels(effectiveBand, factor.id);
                   return (
                     <div className="space-y-5">
                       <div>
@@ -282,13 +305,20 @@ export default function GradeWizardPage() {
                         </p>
                         <h2 className="mt-1 text-lg font-semibold">{factor.name}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">{factor.why}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                          <PdfReference reference={FACTOR_REFERENCES[factor.id]} />
+                          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            Levels are specific to band {getBand(effectiveBand).code}:
+                            <PdfReference reference={BAND_REFERENCE} />
+                          </span>
+                        </div>
                       </div>
                       <RadioGroup
                         value={selected !== undefined ? String(selected) : undefined}
                         onValueChange={(v) => set({ selections: { ...d.selections, [factor.id]: Number(v) } })}
                         className="gap-2"
                       >
-                        {factor.levels.map((lv) => {
+                        {levels.map((lv) => {
                           const active = selected === lv.index;
                           return (
                             <Label
@@ -301,9 +331,12 @@ export default function GradeWizardPage() {
                             >
                               <RadioGroupItem id={`${factor.id}-${lv.index}`} value={String(lv.index)} className="mt-0.5" />
                               <div className="flex-1">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2">
                                   <span className="font-medium">{lv.label}</span>
-                                  <Badge variant={active ? "default" : "secondary"} className="tnum">L{lv.index + 1}</Badge>
+                                  <span className="flex shrink-0 items-center gap-1.5">
+                                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">s.{lv.page}</span>
+                                    <Badge variant={active ? "default" : "secondary"} className="tnum">L{lv.index + 1}</Badge>
+                                  </span>
                                 </div>
                                 <p className="mt-0.5 text-sm text-muted-foreground">{lv.description}</p>
                               </div>
@@ -311,6 +344,16 @@ export default function GradeWizardPage() {
                           );
                         })}
                       </RadioGroup>
+                      {levels.length === 1 && (
+                        <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                          This band defines a single level for this factor in the guide — select it to confirm.
+                        </p>
+                      )}
+                      {levels.length === 0 && (
+                        <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">
+                          The CEO band is anchored to the Company Grade — the guide defines no factor levels for it, so no selection is needed. Continue to Review.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}

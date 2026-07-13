@@ -105,9 +105,11 @@ Bands (low→high): `1, 2, 3IC, 3M, 4IC, 4M, 5FS, 5BS, ceo`.
 | ceo | CEO / BU Manager | M | Business strategy (P&L) |
 
 ### Grade map (band → grade range, relative to Company Grade C)
-Derived from the GGS grade maps. CEO sits at C. Bands occupy contiguous grades
-below C; ranges for 4IC/4M/5FS/5BS widen with company size. Implemented as a
-documented function in `lib/grading/bands.ts` (`bandGradeWindow(band, companyGrade)`).
+Anchored to the **Company-Grade-20 grade map** (guide p.18). CEO sits at C; bands
+occupy contiguous grades below C. Lower bands (1, 2, 3IC, 3M) are size-independent;
+upper bands (4IC, 4M, 5FS, 5BS, CEO) shift with C ("grade shift"). Implemented as a
+single reference table + shift in `lib/grading/bands.ts` (`bandGradeWindow`,
+`BASE_WINDOWS`). The Company-20 values must be verified against page 18.
 
 ## Step 3 — Grading (7 factors)
 
@@ -120,13 +122,16 @@ The seven factors (each with band-specific ordered level definitions):
 6. **Area of Impact** — where impact is felt (own job → team → area/sub-function → function → business unit → enterprise/external).
 7. **Interpersonal Skills** — people skills required (common courtesy → exchange → influence/advise → negotiate → shape strategic relationships).
 
-Factor level definitions are band-specific (a job is graded against the level
-set for its band). Selecting levels places the job at a global grade within the
-band's grade window. WTW's exact per-grade scoring weights are proprietary
-(delivered via WTW software) and not published in the guide; Gradex uses a
-transparent, documented in-band placement: the normalized average of the chosen
-factor levels maps across the band's grade window, then is reconciled to the
-org's scoped range. This preserves GGS structure and relative ordering.
+Factor level definitions are **band-specific** and are implemented as such: each
+band evaluates the seven factors against its own level set (typically 1–4 levels
+per factor, §4.2–4.9), extracted into `lib/grading/band-factors.ts`. A job is
+graded only against the levels defined for its band. WTW's exact per-grade scoring
+weights are proprietary (delivered via WTW software) and not published in the
+guide; Gradex uses a transparent, documented in-band placement: the normalized
+average of the chosen band-specific factor levels maps across the band's grade
+window, then is reconciled to the org's scoped range. Single-level factors carry
+no positional information and are excluded from placement. The CEO band has no
+factor levels — it is anchored directly to the Company Grade.
 
 Principles enforced: grade the **job not the person**; assume a fully competent
 incumbent; avoid grading on impact-of-error; document rationale.
