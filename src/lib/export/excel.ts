@@ -4,6 +4,7 @@
  */
 
 import { FACTORS } from "@/lib/grading/factors";
+import { factorLevels } from "@/lib/grading/band-factors";
 import { getBand, type BandKey } from "@/lib/grading/bands";
 import type { Evaluation, Family, Job } from "@/types";
 
@@ -60,7 +61,7 @@ export async function exportJobsToExcel(
       if (row && (row.levelIndex ?? -1) >= 0) {
         factorVals[f.id] = `L${(row.levelIndex ?? 0) + 1} · ${row.levelLabel ?? ""}`;
       } else if (typeof idxFromSel === "number") {
-        const lv = f.levels[idxFromSel];
+        const lv = factorLevels(job.band as BandKey, f.id)[idxFromSel];
         factorVals[f.id] = `L${idxFromSel + 1} · ${lv?.label ?? ""}`;
       } else {
         factorVals[f.id] = "";

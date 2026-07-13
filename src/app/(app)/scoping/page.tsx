@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardProgress } from "@/components/wizard/wizard-progress";
+import { PdfReference } from "@/components/grading/pdf-reference";
+import { SCOPING_REFERENCES } from "@/lib/grading/references";
 import { ScaleVisual } from "@/components/scale-visual";
 import { AnimatedNumber } from "@/components/animated-number";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
