@@ -83,74 +83,114 @@ export interface Placed { node: ANode; x: number; y: number; hasKids: boolean; o
 export interface Edge { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean }
 export interface Layout { placed: Placed[]; edges: Edge[]; width: number; height: number }
 
-/** Wrap a set of leaf children into a grid when there are more than this many. */
-export const GRID_WRAP = 6;
+/** Wrap a sibling set into a grid when there are more than this many. */
+export const GRID_WRAP = 5;
 
 /**
- * Tidy layout with grid-wrapping. `along` = depth axis, `cross` = sibling axis.
- * When a node's visible children are all leaves and there are > GRID_WRAP of
- * them, they're packed into a ~square grid (e.g. 10 → 4+4+2, 19 → 5+5+5+4)
- * instead of one long row, so the chart never blows out in one direction.
+ * Recursive bounding-box packing layout. Each subtree is laid out and reduced to
+ * a box; a node's children are placed in a single row when few, or a ~square
+ * grid when many (> GRID_WRAP) — sizing each grid cell to the child's own
+ * subtree. This keeps the chart compact in BOTH directions (no sideways sprawl)
+ * whether or not children have their own subtrees. Works for both orientations.
  */
 export function computeLayout(roots: ANode[], orientation: Orientation, isOpen: (n: ANode) => boolean): Layout {
   const horiz = orientation === "horizontal";
-  const alongStep = horiz ? 258 : 104;   // px per along cell (depth / grid row)
-  const crossStep = horiz ? 62 : 232;    // px per cross cell (sibling / grid col)
+  const ND = horiz ? NODE_W : NODE_H;   // node size along depth
+  const NC = horiz ? NODE_H : NODE_W;   // node size across siblings
+  const DGAP = horiz ? 70 : 48;          // gap between levels / grid rows
+  const SGAP = horiz ? 16 : 28;          // gap between siblings / grid cols
 
-  const cell = new Map<string, { a: number; c: number }>(); // along-cell, cross-cell per node
-  const order: ANode[] = [];
-  const edgePairs: { p: ANode; c: ANode }[] = [];
-  const visKids = (n: ANode) => (isOpen(n) ? n.children : []);
-  const isLeafVis = (n: ANode) => visKids(n).length === 0;
-  let cursor = 0;
+  interface Item { node: ANode; cross: number; depth: number }
+  interface Sub { items: Item[]; crossW: number; depthH: number; anchor: number }
 
-  const place = (n: ANode, a: number): number => {
-    order.push(n);
-    const kids = visKids(n);
-    if (kids.length === 0) { const c = cursor++; cell.set(n.id, { a, c }); return c; }
-    kids.forEach((k) => edgePairs.push({ p: n, c: k }));
+  const layoutSub = (n: ANode): Sub => {
+    const kids = isOpen(n) ? n.children : [];
+    if (kids.length === 0) return { items: [{ node: n, cross: 0, depth: 0 }], crossW: NC, depthH: ND, anchor: NC / 2 };
 
-    if (kids.every(isLeafVis) && kids.length > GRID_WRAP) {
-      const cols = Math.ceil(Math.sqrt(kids.length));
-      const start = cursor;
-      kids.forEach((k, i) => cell.set(k.id, { a: a + 1 + Math.floor(i / cols), c: start + (i % cols) }));
-      kids.forEach((k) => order.push(k));
-      cursor = start + cols;
-      const center = start + (cols - 1) / 2;
-      cell.set(n.id, { a, c: center });
-      return center;
+    const subs = kids.map(layoutSub);
+    const childDepth = ND + DGAP;
+    const items: Item[] = [];
+    let nodeCross: number, contentCrossW: number, contentDepthH: number;
+
+    if (kids.length <= GRID_WRAP) {
+      // single row
+      let off = 0, maxH = 0;
+      const anchors: number[] = [];
+      for (const s of subs) {
+        for (const it of s.items) items.push({ node: it.node, cross: it.cross + off, depth: it.depth });
+        anchors.push(off + s.anchor);
+        off += s.crossW + SGAP;
+        maxH = Math.max(maxH, s.depthH);
+      }
+      contentCrossW = off - SGAP;
+      contentDepthH = maxH;
+      nodeCross = (anchors[0] + anchors[anchors.length - 1]) / 2 - NC / 2;
+    } else {
+      // grid: cells sized to child subtrees. Column count is orientation-aware so
+      // the packed block runs WITH the long axis, not against it — horizontal
+      // charts grow rightwards (more columns → shorter), vertical charts grow
+      // downwards (fewer columns → narrower). This is what keeps the whole chart
+      // filling the screen instead of sprawling along the cross axis.
+      const n = kids.length;
+      const cols = horiz
+        ? Math.ceil(Math.sqrt(n))           // near-square, slightly landscape
+        : Math.max(1, Math.floor(Math.sqrt(n))); // portrait: fewer columns, more rows
+      const rows = Math.ceil(n / cols);
+      const colW = new Array(cols).fill(0), rowH = new Array(rows).fill(0);
+      subs.forEach((s, i) => { const c = i % cols, r = Math.floor(i / cols); colW[c] = Math.max(colW[c], s.crossW); rowH[r] = Math.max(rowH[r], s.depthH); });
+      const colX: number[] = []; { let x = 0; for (let c = 0; c < cols; c++) { colX[c] = x; x += colW[c] + SGAP; } }
+      const rowY: number[] = []; { let y = 0; for (let r = 0; r < rows; r++) { rowY[r] = y; y += rowH[r] + DGAP; } }
+      subs.forEach((s, i) => {
+        const c = i % cols, r = Math.floor(i / cols);
+        const cx = colX[c] + (colW[c] - s.crossW) / 2;
+        for (const it of s.items) items.push({ node: it.node, cross: it.cross + cx, depth: it.depth + rowY[r] });
+      });
+      contentCrossW = colX[cols - 1] + colW[cols - 1];
+      contentDepthH = rowY[rows - 1] + rowH[rows - 1];
+      nodeCross = (contentCrossW - NC) / 2;
     }
 
-    const centers = kids.map((k) => place(k, a + 1));
-    const center = (centers[0] + centers[centers.length - 1]) / 2;
-    cell.set(n.id, { a, c: center });
-    return center;
+    for (const it of items) it.depth += childDepth;
+    const shift = -Math.min(0, nodeCross);
+    for (const it of items) it.cross += shift;
+    const nodeC = nodeCross + shift;
+    items.push({ node: n, cross: nodeC, depth: 0 });
+    return { items, crossW: Math.max(nodeC + NC, contentCrossW + shift), depthH: childDepth + contentDepthH, anchor: nodeC + NC / 2 };
   };
-  roots.forEach((r) => place(r, 0));
 
-  const toXY = (a: number, c: number) => (horiz ? { x: a * alongStep, y: c * crossStep } : { x: c * crossStep, y: a * alongStep });
+  // stack roots along the cross axis
+  const all: Item[] = [];
+  let off = 0;
+  for (const r of roots) {
+    const s = layoutSub(r);
+    for (const it of s.items) all.push({ node: it.node, cross: it.cross + off, depth: it.depth });
+    off += s.crossW + SGAP * 2;
+  }
+
+  const pos = new Map<string, { x: number; y: number }>();
   const placed: Placed[] = [];
-  const byXY = new Map<string, { x: number; y: number }>();
-  const seen = new Set<string>();
-  for (const n of order) {
-    if (seen.has(n.id)) continue; seen.add(n.id);
-    const cc = cell.get(n.id)!;
-    const { x, y } = toXY(cc.a, cc.c);
-    byXY.set(n.id, { x, y });
-    placed.push({ node: n, x, y, hasKids: n.children.length > 0, open: isOpen(n), hidden: countA(n) });
+  for (const it of all) {
+    const x = horiz ? it.depth : it.cross;
+    const y = horiz ? it.cross : it.depth;
+    pos.set(it.node.id, { x, y });
+    placed.push({ node: it.node, x, y, hasKids: it.node.children.length > 0, open: isOpen(it.node), hidden: countA(it.node) });
   }
 
   const edges: Edge[] = [];
-  for (const { p, c } of edgePairs) {
-    const a = byXY.get(p.id)!, b = byXY.get(c.id)!;
-    edges.push(horiz
-      ? { id: `${p.id}-${c.id}`, x1: a.x + NODE_W, y1: a.y + NODE_H / 2, x2: b.x, y2: b.y + NODE_H / 2 }
-      : { id: `${p.id}-${c.id}`, x1: a.x + NODE_W / 2, y1: a.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y });
+  for (const p of placed) {
+    if (!isOpen(p.node)) continue;
+    for (const k of p.node.children) {
+      const a = pos.get(p.node.id)!, b = pos.get(k.id);
+      if (!b) continue;
+      edges.push(horiz
+        ? { id: `${p.node.id}-${k.id}`, x1: a.x + NODE_W, y1: a.y + NODE_H / 2, x2: b.x, y2: b.y + NODE_H / 2 }
+        : { id: `${p.node.id}-${k.id}`, x1: a.x + NODE_W / 2, y1: a.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y });
+    }
   }
-  for (const n of placed) {
-    for (const t of n.node.functionalLinks ?? []) {
-      const b = byXY.get(t);
-      if (b) edges.push({ id: `f-${n.node.id}-${t}`, x1: n.x + NODE_W / 2, y1: n.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y, dashed: true });
+  for (const p of placed) {
+    for (const t of p.node.functionalLinks ?? []) {
+      const b = pos.get(t);
+      if (b) edges.push({ id: `f-${p.node.id}-${t}`, x1: p.x + NODE_W / 2, y1: p.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y, dashed: true });
     }
   }
 
