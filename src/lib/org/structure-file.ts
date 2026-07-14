@@ -15,9 +15,12 @@ const LEVELS: { header: string; type: string }[] = [
   { header: "Unit", type: "unit" },
 ];
 
+import { excelTypeToKey } from "./structure";
+
 export interface ParsedNode {
   tmpId: string;
   name: string;
+  nameEn?: string;
   type: string;
   parentTmp: string | null;
   headcount: number;
@@ -67,20 +70,58 @@ export async function parseStructure(file: File): Promise<ParsedNode[]> {
   headerRow.eachCell((cell, col) => {
     colByHeader.set(String(cell.value ?? "").trim().toLowerCase(), col);
   });
-  const levelCols = LEVELS.map((l) => ({ ...l, col: colByHeader.get(l.header.toLowerCase()) }));
-  if (!levelCols.some((l) => l.col)) throw new Error("Couldn't find the structure columns. Use the provided template.");
-  const empCol = colByHeader.get("employees");
-  const vacCol = colByHeader.get("vacancies");
-
   const text = (v: unknown): string => {
     if (v == null) return "";
-    if (typeof v === "object" && v && "text" in v) return String((v as { text: string }).text).trim();
+    if (typeof v === "object" && v) {
+      if ("text" in v) return String((v as { text: string }).text).trim();
+      if ("richText" in v) return (v as { richText: { text: string }[] }).richText.map((t) => t.text).join("").trim();
+    }
     return String(v).trim();
   };
   const num = (v: unknown): number => {
     const n = Number(typeof v === "object" && v && "result" in v ? (v as { result: unknown }).result : v);
     return Number.isFinite(n) ? n : 0;
   };
+
+  // Find a column whose header contains any of the given substrings.
+  const findCol = (...needles: string[]) => {
+    for (const [h, c] of colByHeader) if (needles.some((n) => h.includes(n))) return c;
+    return undefined;
+  };
+
+  // --- Edge-list format (ID / Parent ID / Type) — e.g. the exported org chart ---
+  const idCol = colByHeader.get("id") ?? findCol("id ", " id");
+  const parentCol = findCol("parent id", "parent");
+  if (idCol && parentCol) {
+    const nameCol = findCol("ad (az", "ad(az", "name (az", "ad", "name") ?? idCol;
+    const nameEnCol = findCol("name (en", "name(en", "(en)");
+    const typeCol = findCol("type (en", "tip", "type");
+    const eCol = colByHeader.get("employees") ?? findCol("employee", "işçi", "headcount");
+    const vCol = colByHeader.get("vacancies") ?? findCol("vacan", "vakan");
+    const out: ParsedNode[] = [];
+    ws.eachRow((row, n) => {
+      if (n === 1) return;
+      const id = text(row.getCell(idCol).value);
+      if (!id) return;
+      const parent = text(row.getCell(parentCol).value);
+      out.push({
+        tmpId: id,
+        name: text(row.getCell(nameCol).value) || id,
+        nameEn: nameEnCol ? text(row.getCell(nameEnCol).value) : undefined,
+        type: typeCol ? excelTypeToKey(text(row.getCell(typeCol).value)) : "unit",
+        parentTmp: parent || null,
+        headcount: eCol ? num(row.getCell(eCol).value) : 0,
+        vacancies: vCol ? num(row.getCell(vCol).value) : 0,
+      });
+    });
+    if (out.length === 0) throw new Error("No rows found in the edge-list sheet.");
+    return out;
+  }
+
+  const levelCols = LEVELS.map((l) => ({ ...l, col: colByHeader.get(l.header.toLowerCase()) }));
+  if (!levelCols.some((l) => l.col)) throw new Error("Couldn't find the structure columns. Use the provided template.");
+  const empCol = colByHeader.get("employees");
+  const vacCol = colByHeader.get("vacancies");
 
   const map = new Map<string, ParsedNode>();
   const nodes: ParsedNode[] = [];

@@ -12,16 +12,20 @@
  */
 
 export type StructureMode = "functional" | "agile";
-export type TypeGroup = "corporate" | "non_agile" | "agile";
+export type TypeGroup = "corporate" | "governance" | "non_agile" | "agile";
 
 export interface OrgUnit {
   id: string;
   name: string;
+  /** Optional secondary (e.g. English) name. */
+  nameEn?: string;
   type: string;
   parentId: string | null;
   functionalLinks?: string[];
   headcount?: number;
   vacancies?: number;
+  /** Depth level from the source (informational). */
+  level?: number;
   order?: number;
   createdAt?: number;
   updatedAt?: number;
@@ -30,40 +34,81 @@ export interface OrgUnit {
 export interface UnitTypeDef {
   key: string;
   label: string;
+  labelAz?: string;
   group: TypeGroup;
   color: string;
 }
 
 export const UNIT_TYPES: UnitTypeDef[] = [
   // Corporate
-  { key: "parent_company", label: "Parent Company", group: "corporate", color: "#5B5BF5" },
-  { key: "subsidiary", label: "Subsidiary", group: "corporate", color: "#7C6CF6" },
-  { key: "company", label: "Company", group: "corporate", color: "#6366F1" },
-  // Non-agile
-  { key: "department", label: "Department", group: "non_agile", color: "#3B82F6" },
-  { key: "section", label: "Section", group: "non_agile", color: "#06B6D4" },
-  { key: "division", label: "Division", group: "non_agile", color: "#10B981" },
-  { key: "unit", label: "Unit", group: "non_agile", color: "#F59E0B" },
+  { key: "parent_company", label: "Parent Company", labelAz: "Baş şirkət", group: "corporate", color: "#5B5BF5" },
+  { key: "subsidiary", label: "Subsidiary", labelAz: "Törəmə", group: "corporate", color: "#7C6CF6" },
+  { key: "company", label: "Company", labelAz: "Şirkət", group: "corporate", color: "#6366F1" },
+  // Governance
+  { key: "governance_body", label: "Governance body", labelAz: "Ali orqan", group: "governance", color: "#5B5BF5" },
+  { key: "leadership", label: "Leadership", labelAz: "Rəhbərlik", group: "governance", color: "#4338CA" },
+  { key: "committee", label: "Committee", labelAz: "Komitə", group: "governance", color: "#6366F1" },
+  { key: "commission", label: "Commission", labelAz: "Komissiya", group: "governance", color: "#8B5CF6" },
+  { key: "expert_group", label: "Expert group", labelAz: "Ekspert qrupu", group: "governance", color: "#7C3AED" },
+  // Structural (non-agile)
+  { key: "department", label: "Department", labelAz: "Departament", group: "non_agile", color: "#3B82F6" },
+  { key: "division", label: "Division", labelAz: "Şöbə", group: "non_agile", color: "#0EA5E9" },
+  { key: "section", label: "Section", labelAz: "Bölmə", group: "non_agile", color: "#06B6D4" },
+  { key: "unit", label: "Unit", labelAz: "Vahid", group: "non_agile", color: "#F59E0B" },
+  { key: "office", label: "Office", labelAz: "Ofis / İdarə", group: "non_agile", color: "#14B8A6" },
+  { key: "process", label: "Process", labelAz: "Proses", group: "non_agile", color: "#64748B" },
+  { key: "branches", label: "Branches", labelAz: "Yerli bölmələr", group: "non_agile", color: "#0D9488" },
   // Agile
-  { key: "tribe", label: "Tribe", group: "agile", color: "#8B5CF6" },
-  { key: "functional_area", label: "Functional Area", group: "agile", color: "#A855F7" },
-  { key: "squad", label: "Squad", group: "agile", color: "#EC4899" },
-  { key: "chapter", label: "Chapter", group: "agile", color: "#06B6D4" },
-  { key: "guild", label: "Guild", group: "agile", color: "#16C098" },
+  { key: "tribe", label: "Tribe", labelAz: "Sahə", group: "agile", color: "#EC4899" },
+  { key: "functional_area", label: "Functional area", labelAz: "Funksional sahə", group: "agile", color: "#A855F7" },
+  { key: "coe", label: "CoE", labelAz: "Ekspert mərkəzi", group: "agile", color: "#16C098" },
+  { key: "squad", label: "Squad", labelAz: "Skvad", group: "agile", color: "#F472B6" },
+  { key: "chapter", label: "Chapter", labelAz: "Çapter", group: "agile", color: "#22D3EE" },
+  { key: "guild", label: "Guild", labelAz: "Gild", group: "agile", color: "#2DD4BF" },
 ];
 
 export const GROUP_LABEL: Record<TypeGroup, string> = {
   corporate: "Corporate",
-  non_agile: "Non-agile",
+  governance: "Governance",
+  non_agile: "Structural",
   agile: "Agile",
 };
+
+/** Maps the English type strings used in the bulk edge-list export to type keys. */
+export const EXCEL_TYPE_MAP: Record<string, string> = {
+  "governance body": "governance_body",
+  "leadership": "leadership",
+  "committee": "committee",
+  "commission": "commission",
+  "expert group": "expert_group",
+  "department": "department",
+  "division": "division",
+  "section": "section",
+  "unit": "unit",
+  "office": "office",
+  "process": "process",
+  "branches": "branches",
+  "tribe": "tribe",
+  "functional area": "functional_area",
+  "coe": "coe",
+  "squad": "squad",
+  "chapter": "chapter",
+  "guild": "guild",
+  "parent company": "parent_company",
+  "subsidiary": "subsidiary",
+  "company": "company",
+};
+
+export function excelTypeToKey(typeEn: string): string {
+  return EXCEL_TYPE_MAP[typeEn.trim().toLowerCase()] ?? "unit";
+}
 
 export function typeDef(key: string): UnitTypeDef {
   return UNIT_TYPES.find((t) => t.key === key) ?? UNIT_TYPES[UNIT_TYPES.length - 1];
 }
 
 export function typesByGroup(): { group: TypeGroup; label: string; types: UnitTypeDef[] }[] {
-  return (["corporate", "non_agile", "agile"] as TypeGroup[]).map((g) => ({
+  return (["corporate", "governance", "non_agile", "agile"] as TypeGroup[]).map((g) => ({
     group: g,
     label: GROUP_LABEL[g],
     types: UNIT_TYPES.filter((t) => t.group === g),

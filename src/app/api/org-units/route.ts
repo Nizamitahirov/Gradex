@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
     const ref = await orgRef.collection("orgUnits").add({
       name,
+      nameEn: body.nameEn ? String(body.nameEn).trim() : null,
       type: String(body.type ?? "unit"),
       parentId: body.parentId ?? null,
       functionalLinks: Array.isArray(body.functionalLinks) ? body.functionalLinks : [],
