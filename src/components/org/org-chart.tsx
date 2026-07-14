@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import {
-  Users, UserPlus, Briefcase, Plus, Pencil, Link2, Search, X,
-  ZoomIn, ZoomOut, Scan, Maximize2, Minimize2, ChevronsDownUp, ChevronsUpDown, RotateCcw,
+  Plus, Search, X, ZoomIn, ZoomOut, Scan, Maximize2, Minimize2,
+  ChevronsDownUp, ChevronsUpDown, RotateCcw, Users, UserPlus,
 } from "lucide-react";
-import { buildTree, descendantIds, typeDef, type OrgUnit, type OrgNode } from "@/lib/org/structure";
+import { buildTree, descendantIds, typeDef, groupColorOf, GROUP_COLOR, GROUP_LABEL, type OrgUnit, type OrgNode, type TypeGroup } from "@/lib/org/structure";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,23 +17,29 @@ interface Props {
   onReparent: (id: string, newParentId: string | null) => void;
 }
 
-interface LinkLine { id: string; x1: number; y1: number; x2: number; y2: number }
+// Layout constants — compact horizontal (left→right) tidy tree.
+const COL = 236;   // x distance per depth
+const ROW = 46;    // y slot per leaf
+const NODE_W = 196;
+const NODE_H = 40;
+const MIN_ZOOM = 0.08;
+const MAX_ZOOM = 1.6;
 
-const MIN_ZOOM = 0.2;
-const MAX_ZOOM = 2;
+interface Placed { node: OrgNode; x: number; y: number; hasKids: boolean; collapsed: boolean; hidden: number }
+interface Edge { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean }
+
+function countDescendants(n: OrgNode): number {
+  return n.children.reduce((s, c) => s + 1 + countDescendants(c), 0);
+}
 
 export function OrgChart({ units, canEdit, positionsFor, onAddChild, onEdit, onReparent }: Props) {
   const roots = React.useMemo(() => buildTree(units), [units]);
   const viewportRef = React.useRef<HTMLDivElement>(null);
-  const contentRef = React.useRef<HTMLDivElement>(null);
-  const nodeRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
-
-  const [zoom, setZoom] = React.useState(1);
-  const [pan, setPan] = React.useState({ x: 24, y: 16 });
+  const [zoom, setZoom] = React.useState(0.6);
+  const [pan, setPan] = React.useState({ x: 40, y: 24 });
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [fullscreen, setFullscreen] = React.useState(false);
   const [panning, setPanning] = React.useState(false);
-  const [links, setLinks] = React.useState<LinkLine[]>([]);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
@@ -42,29 +48,10 @@ export function OrgChart({ units, canEdit, positionsFor, onAddChild, onEdit, onR
   const withChildren = React.useMemo(() => new Set(units.filter((u) => units.some((c) => c.parentId === u.id)).map((u) => u.id)), [units]);
   const blocked = React.useMemo(() => (dragId ? new Set([dragId, ...descendantIds(units, dragId)]) : new Set<string>()), [dragId, units]);
 
-  // Depth per node (for initial collapse).
-  const depthOf = React.useMemo(() => {
-    const m = new Map<string, number>();
-    const walk = (nodes: OrgNode[]) => nodes.forEach((n) => { m.set(n.id, n.depth); walk(n.children); });
-    walk(roots);
-    return m;
-  }, [roots]);
-
-  // Initial collapse: on first load of a sizeable tree, collapse everything at depth ≥ 2.
-  const didInit = React.useRef(false);
-  React.useEffect(() => {
-    if (didInit.current || units.length === 0) return;
-    didInit.current = true;
-    if (units.length > 30) {
-      setCollapsed(new Set(units.filter((u) => withChildren.has(u.id) && (depthOf.get(u.id) ?? 0) >= 2).map((u) => u.id)));
-    }
-  }, [units, withChildren, depthOf]);
-
-  // Search → matches + ancestors to keep visible.
   const searchLc = search.trim().toLowerCase();
+  const searchActive = searchLc.length > 0;
   const { matches, forceOpen } = React.useMemo(() => {
-    const matches = new Set<string>();
-    const forceOpen = new Set<string>();
+    const matches = new Set<string>(), forceOpen = new Set<string>();
     if (!searchLc) return { matches, forceOpen };
     for (const u of units) {
       if (`${u.name} ${u.nameEn ?? ""}`.toLowerCase().includes(searchLc)) {
@@ -76,48 +63,68 @@ export function OrgChart({ units, canEdit, positionsFor, onAddChild, onEdit, onR
     return { matches, forceOpen };
   }, [searchLc, units, parentOf]);
 
-  // Types present, for the legend.
-  const legend = React.useMemo(() => {
-    const seen = new Map<string, number>();
-    units.forEach((u) => seen.set(u.type, (seen.get(u.type) ?? 0) + 1));
-    return [...seen.entries()].map(([key, count]) => ({ ...typeDef(key), count })).sort((a, b) => b.count - a.count);
-  }, [units]);
-
-  // ---- functional (dotted) link measurement ----
-  const measure = React.useCallback(() => {
-    const content = contentRef.current;
-    if (!content) return;
-    const cr = content.getBoundingClientRect();
-    const center = (el: HTMLDivElement) => {
-      const r = el.getBoundingClientRect();
-      return { x: (r.left - cr.left + r.width / 2) / zoom, y: (r.top - cr.top + r.height / 2) / zoom };
+  // ---- tidy layout: depth → x column, leaf slots → y, internal centred on children ----
+  const { placed, edges, width, height } = React.useMemo(() => {
+    const placed: Placed[] = [];
+    const edges: Edge[] = [];
+    const byId = new Map<string, Placed>();
+    let leaf = 0, maxDepth = 0;
+    const place = (node: OrgNode, depth: number): number => {
+      maxDepth = Math.max(maxDepth, depth);
+      const isCollapsed = collapsed.has(node.id) && !(searchActive && forceOpen.has(node.id));
+      const kids = isCollapsed ? [] : node.children;
+      const x = depth * COL;
+      let y: number;
+      if (kids.length === 0) { y = leaf * ROW; leaf++; }
+      else {
+        const ys = kids.map((c) => place(c, depth + 1));
+        y = (ys[0] + ys[ys.length - 1]) / 2;
+        kids.forEach((c) => {
+          const cp = byId.get(c.id)!;
+          edges.push({ id: `${node.id}-${c.id}`, x1: x + NODE_W, y1: y + NODE_H / 2, x2: cp.x, y2: cp.y + NODE_H / 2 });
+        });
+      }
+      const p: Placed = { node, x, y, hasKids: node.children.length > 0, collapsed: isCollapsed, hidden: countDescendants(node) };
+      placed.push(p); byId.set(node.id, p);
+      return y;
     };
-    const out: LinkLine[] = [];
+    roots.forEach((r) => place(r, 0));
+    // functional (dotted) links
     for (const u of units) {
-      const from = nodeRefs.current.get(u.id);
-      if (!from || !u.functionalLinks?.length) continue;
-      const a = center(from);
+      const a = byId.get(u.id);
+      if (!a || !u.functionalLinks?.length) continue;
       for (const t of u.functionalLinks) {
-        const toEl = nodeRefs.current.get(t);
-        if (!toEl) continue;
-        const b = center(toEl);
-        out.push({ id: `${u.id}-${t}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+        const b = byId.get(t);
+        if (b) edges.push({ id: `f-${u.id}-${t}`, x1: a.x + NODE_W / 2, y1: a.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y, dashed: true });
       }
     }
-    setLinks(out);
-  }, [units, zoom]);
+    return { placed, edges, width: (maxDepth + 1) * COL, height: Math.max(1, leaf * ROW), byId };
+  }, [roots, collapsed, searchActive, forceOpen, units]);
 
-  React.useLayoutEffect(() => { measure(); }, [measure, collapsed, fullscreen, forceOpen]);
+  const legend = React.useMemo(() => {
+    const groups = new Map<TypeGroup, number>();
+    units.forEach((u) => { const g = typeDef(u.type).group; groups.set(g, (groups.get(g) ?? 0) + 1); });
+    return [...groups.entries()].map(([g, count]) => ({ group: g, label: GROUP_LABEL[g], color: GROUP_COLOR[g], count })).sort((a, b) => b.count - a.count);
+  }, [units]);
+
+  // ---- fit / pan / zoom ----
+  const fit = React.useCallback((w = width, h = height) => {
+    const vp = viewportRef.current;
+    if (!vp || !w || !h) return;
+    const z = Math.max(MIN_ZOOM, Math.min((vp.clientWidth - 64) / w, (vp.clientHeight - 64) / h, 1));
+    setZoom(Math.round(z * 1000) / 1000);
+    setPan({ x: Math.max(24, (vp.clientWidth - w * z) / 2), y: Math.max(20, (vp.clientHeight - h * z) / 2) });
+  }, [width, height]);
+
+  const didFit = React.useRef(false);
   React.useEffect(() => {
-    const onResize = () => measure();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [measure]);
+    if (!didFit.current && width > 1 && height > 1) { didFit.current = true; requestAnimationFrame(() => fit()); }
+  }, [width, height, fit]);
+  React.useEffect(() => { requestAnimationFrame(() => fit()); /* refit on fullscreen */ }, [fullscreen, fit]);
 
-  // ---- pan ----
   const panState = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.target !== viewportRef.current && e.target !== contentRef.current) return;
+    if ((e.target as HTMLElement).closest("[data-node]")) return;
     panState.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     setPanning(true);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -130,184 +137,139 @@ export function OrgChart({ units, canEdit, positionsFor, onAddChild, onEdit, onR
     panState.current = null; setPanning(false);
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
   };
+  const onWheel = (e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z - e.deltaY * 0.001) * 1000) / 1000)));
+  };
 
   const zoomBy = (d: number) => setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z + d) * 100) / 100)));
-  const reset = () => { setZoom(1); setPan({ x: 24, y: 16 }); };
-  const fit = React.useCallback(() => {
-    const vp = viewportRef.current, content = contentRef.current;
-    if (!vp || !content) return;
-    const cw = content.scrollWidth, ch = content.scrollHeight;
-    if (!cw || !ch) return;
-    const z = Math.min((vp.clientWidth - 48) / cw, (vp.clientHeight - 48) / ch, 1);
-    const nz = Math.max(MIN_ZOOM, Math.round(z * 100) / 100);
-    setZoom(nz);
-    setPan({ x: Math.max(16, (vp.clientWidth - cw * nz) / 2), y: 16 });
-  }, []);
-
   const expandAll = () => setCollapsed(new Set());
   const collapseAll = () => setCollapsed(new Set(withChildren));
   const toggleCollapse = (id: string) => setCollapsed((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const drop = (targetId: string | null) => {
-    if (!dragId) return;
-    if (targetId && blocked.has(targetId)) return;
+  const drop = (targetId: string) => {
+    if (!dragId || blocked.has(targetId)) return;
     onReparent(dragId, targetId);
     setDragId(null); setOverId(null);
   };
 
-  const countDescendants = (node: OrgNode): number => node.children.reduce((s, c) => s + 1 + countDescendants(c), 0);
-  const searchActive = searchLc.length > 0;
-
-  const renderNode = (node: OrgNode) => {
-    const td = typeDef(node.type);
-    const isOver = overId === node.id && dragId && !blocked.has(node.id);
-    const isBlocked = !!dragId && blocked.has(node.id);
-    const hasKids = node.children.length > 0;
-    const isCollapsed = collapsed.has(node.id) && !(searchActive && forceOpen.has(node.id));
-    const dimmed = searchActive && !matches.has(node.id) && !forceOpen.has(node.id);
-    const hit = searchActive && matches.has(node.id);
-    return (
-      <li key={node.id}>
-        <div
-          ref={(el) => { if (el) nodeRefs.current.set(node.id, el); else nodeRefs.current.delete(node.id); }}
-          draggable={canEdit}
-          onDragStart={(e) => { setDragId(node.id); e.dataTransfer.effectAllowed = "move"; }}
-          onDragEnd={() => { setDragId(null); setOverId(null); }}
-          onDragOver={(e) => { if (dragId && !isBlocked) { e.preventDefault(); setOverId(node.id); } }}
-          onDragLeave={() => setOverId((c) => (c === node.id ? null : c))}
-          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); drop(node.id); }}
-          className={cn(
-            "group relative w-[220px] rounded-xl border bg-card text-left shadow-[var(--shadow-card)] transition-all",
-            canEdit && "cursor-grab active:cursor-grabbing",
-            hit ? "border-primary ring-2 ring-primary/50" : isOver ? "border-primary ring-2 ring-primary/40" : "border-border",
-            isBlocked && "opacity-40",
-            dimmed && "opacity-35",
-          )}
-        >
-          <div className="h-1.5 rounded-t-xl" style={{ background: td.color }} />
-          <div className="p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: `${td.color}1a`, color: td.color }}>{td.label}</span>
-              {canEdit && (
-                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button onClick={() => onAddChild(node)} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Add child"><Plus className="size-3.5" /></button>
-                  <button onClick={() => onEdit(node)} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
-                </div>
-              )}
-            </div>
-            <p className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug" title={node.name}>{node.name}</p>
-            {node.nameEn && <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground" title={node.nameEn}>{node.nameEn}</p>}
-            {(node.headcount || node.vacancies || positionsFor(node) || node.functionalLinks?.length) ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                {!!node.headcount && <span className="inline-flex items-center gap-1" title="Employees"><Users className="size-3" /> {node.headcount}</span>}
-                {!!node.vacancies && <span className="inline-flex items-center gap-1" title="Vacancies"><UserPlus className="size-3" /> {node.vacancies}</span>}
-                {!!positionsFor(node) && <span className="inline-flex items-center gap-1" title="Linked positions"><Briefcase className="size-3" /> {positionsFor(node)}</span>}
-                {!!node.functionalLinks?.length && <span className="inline-flex items-center gap-1 text-primary"><Link2 className="size-3" /> {node.functionalLinks.length}</span>}
-              </div>
-            ) : null}
-          </div>
-          {hasKids && (
-            <button
-              onClick={() => toggleCollapse(node.id)}
-              className="absolute -bottom-3 left-1/2 z-10 flex h-6 min-w-6 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card px-1.5 text-[10px] font-bold text-muted-foreground shadow-sm hover:text-foreground"
-              title={isCollapsed ? "Expand" : "Collapse"}
-            >
-              {isCollapsed ? `+${countDescendants(node)}` : "–"}
-            </button>
-          )}
-        </div>
-        {hasKids && !isCollapsed && <ul>{node.children.map(renderNode)}</ul>}
-      </li>
-    );
-  };
-
-  const Toolbar = (
-    <div className="absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-2">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Axtar / Search…"
-          className="h-9 w-44 rounded-lg border border-border bg-card/95 pl-8 pr-7 text-sm shadow-md outline-none backdrop-blur focus:border-primary"
-        />
-        {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>}
-      </div>
-      <div className="flex items-center gap-1 rounded-xl border border-border bg-card/95 p-1 shadow-md backdrop-blur">
-        <CtrlBtn onClick={() => zoomBy(-0.1)} title="Zoom out"><ZoomOut className="size-4" /></CtrlBtn>
-        <button onClick={reset} className="min-w-[44px] rounded-md px-1 text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground" title="Reset zoom">{Math.round(zoom * 100)}%</button>
-        <CtrlBtn onClick={() => zoomBy(0.1)} title="Zoom in"><ZoomIn className="size-4" /></CtrlBtn>
-        <span className="mx-0.5 h-5 w-px bg-border" />
-        <CtrlBtn onClick={fit} title="Fit / center"><Scan className="size-4" /></CtrlBtn>
-        <CtrlBtn onClick={reset} title="Reset view"><RotateCcw className="size-4" /></CtrlBtn>
-        <span className="mx-0.5 h-5 w-px bg-border" />
-        <CtrlBtn onClick={collapseAll} title="Collapse all"><ChevronsDownUp className="size-4" /></CtrlBtn>
-        <CtrlBtn onClick={expandAll} title="Expand all"><ChevronsUpDown className="size-4" /></CtrlBtn>
-        <span className="mx-0.5 h-5 w-px bg-border" />
-        <CtrlBtn onClick={() => setFullscreen((f) => !f)} title={fullscreen ? "Exit full screen" : "Full screen"}>{fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</CtrlBtn>
-      </div>
-    </div>
-  );
-
   return (
-    <div className={cn("rounded-2xl border border-border bg-muted/20", fullscreen && "fixed inset-0 z-[60] rounded-none bg-background p-3")}>
-      <style>{`
-        .octree, .octree ul { display:flex; list-style:none; margin:0; padding:0; }
-        .octree { justify-content:center; padding-top:4px; }
-        .octree ul { padding-top:28px; position:relative; justify-content:center; }
-        .octree li { display:flex; flex-direction:column; align-items:center; position:relative; padding:28px 12px 0; }
-        .octree li::before, .octree li::after { content:''; position:absolute; top:0; right:50%; border-top:2px solid var(--border); width:50%; height:28px; }
-        .octree li::after { right:auto; left:50%; border-left:2px solid var(--border); }
-        .octree li:only-child::before, .octree li:only-child::after { display:none; }
-        .octree li:first-child::before, .octree li:last-child::after { border:0 none; }
-        .octree li:last-child::before { border-right:2px solid var(--border); border-radius:0 8px 0 0; }
-        .octree li:first-child::after { border-radius:8px 0 0 0; }
-        .octree ul ul::before { content:''; position:absolute; top:0; left:50%; border-left:2px solid var(--border); width:0; height:28px; }
-        .octree > li { padding-top:0; }
-        .octree > li::before, .octree > li::after { display:none; }
-      `}</style>
-      <div className="relative" style={{ height: fullscreen ? "calc(100vh - 24px)" : "72vh" }}>
-        {Toolbar}
-        <div
-          ref={viewportRef}
-          className="h-full w-full touch-none overflow-hidden rounded-xl"
-          style={{ cursor: panning ? "grabbing" : "default" }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onDragOver={(e) => { if (dragId) e.preventDefault(); }}
-          onDrop={(e) => { e.preventDefault(); drop(null); }}
-        >
-          <div ref={contentRef} className="relative inline-block origin-top-left" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
-            <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: 0 }}>
-              {links.map((l) => (
-                <path key={l.id} d={`M ${l.x1} ${l.y1} C ${l.x1} ${(l.y1 + l.y2) / 2}, ${l.x2} ${(l.y1 + l.y2) / 2}, ${l.x2} ${l.y2}`} fill="none" stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.55} />
+    <div className={cn("overflow-hidden rounded-2xl border border-border bg-muted/30", fullscreen && "fixed inset-0 z-[60] rounded-none bg-background")}>
+      <div className="relative" style={{ height: fullscreen ? "100vh" : "76vh" }}>
+        {/* Controls */}
+        <div className="absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Axtar / Search…"
+              className="h-9 w-48 rounded-lg border border-border bg-card/95 pl-8 pr-7 text-sm shadow-sm outline-none backdrop-blur focus:border-primary" />
+            {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>}
+          </div>
+          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card/95 p-1 shadow-sm backdrop-blur">
+            <Ctrl onClick={() => zoomBy(-0.1)} title="Zoom out"><ZoomOut className="size-4" /></Ctrl>
+            <button onClick={() => fit()} className="min-w-[42px] rounded-md px-1 text-xs font-semibold tabular-nums text-muted-foreground hover:text-foreground" title="Fit to screen">{Math.round(zoom * 100)}%</button>
+            <Ctrl onClick={() => zoomBy(0.1)} title="Zoom in"><ZoomIn className="size-4" /></Ctrl>
+            <span className="mx-0.5 h-5 w-px bg-border" />
+            <Ctrl onClick={() => fit()} title="Fit / center"><Scan className="size-4" /></Ctrl>
+            <Ctrl onClick={() => { setZoom(0.8); setPan({ x: 40, y: 24 }); }} title="Reset"><RotateCcw className="size-4" /></Ctrl>
+            <span className="mx-0.5 h-5 w-px bg-border" />
+            <Ctrl onClick={collapseAll} title="Collapse all"><ChevronsDownUp className="size-4" /></Ctrl>
+            <Ctrl onClick={expandAll} title="Expand all"><ChevronsUpDown className="size-4" /></Ctrl>
+            <span className="mx-0.5 h-5 w-px bg-border" />
+            <Ctrl onClick={() => setFullscreen((f) => !f)} title={fullscreen ? "Exit full screen" : "Full screen"}>{fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</Ctrl>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div ref={viewportRef} className="h-full w-full touch-none overflow-hidden"
+          style={{ cursor: panning ? "grabbing" : "grab" }}
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onWheel={onWheel}>
+          <div className="relative origin-top-left" style={{ width, height, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+            {/* connectors */}
+            <svg className="pointer-events-none absolute left-0 top-0" width={width} height={height} style={{ overflow: "visible" }}>
+              {edges.map((e) => (
+                <path key={e.id}
+                  d={`M ${e.x1} ${e.y1} C ${(e.x1 + e.x2) / 2} ${e.y1}, ${(e.x1 + e.x2) / 2} ${e.y2}, ${e.x2} ${e.y2}`}
+                  fill="none" stroke={e.dashed ? "var(--primary)" : "var(--border)"} strokeWidth={e.dashed ? 1.5 : 1.5}
+                  strokeDasharray={e.dashed ? "5 4" : undefined} opacity={e.dashed ? 0.6 : 1} />
               ))}
             </svg>
-            {roots.length > 0 ? (
-              <ul className="octree relative" style={{ zIndex: 1 }}>{roots.map(renderNode)}</ul>
-            ) : (
-              <p className="p-16 text-center text-sm text-muted-foreground">No structure yet.</p>
-            )}
+
+            {/* nodes */}
+            {placed.map(({ node, x, y, hasKids, collapsed: isCol, hidden }) => {
+              const td = typeDef(node.type);
+              const color = groupColorOf(node.type);
+              const hit = searchActive && matches.has(node.id);
+              const dim = searchActive && !matches.has(node.id) && !forceOpen.has(node.id);
+              const isOver = overId === node.id && dragId && !blocked.has(node.id);
+              const hc = node.headcount ?? 0, vc = node.vacancies ?? 0, pos = positionsFor(node);
+              return (
+                <div key={node.id} data-node style={{ position: "absolute", left: x, top: y, width: NODE_W, height: NODE_H }}>
+                  <div
+                    draggable={canEdit}
+                    onDragStart={(e) => { setDragId(node.id); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragEnd={() => { setDragId(null); setOverId(null); }}
+                    onDragOver={(e) => { if (dragId && !blocked.has(node.id)) { e.preventDefault(); setOverId(node.id); } }}
+                    onDragLeave={() => setOverId((c) => (c === node.id ? null : c))}
+                    onDrop={(e) => { e.preventDefault(); drop(node.id); }}
+                    onClick={() => canEdit && onEdit(node)}
+                    title={`${node.name}${node.nameEn ? " — " + node.nameEn : ""} · ${td.label}${hc || vc || pos ? ` · ${hc} emp / ${vc} vac / ${pos} pos` : ""}`}
+                    className={cn(
+                      "group flex h-full w-full items-stretch overflow-hidden rounded-lg border bg-card shadow-[var(--shadow-card)] transition-shadow",
+                      canEdit && "cursor-pointer hover:shadow-md",
+                      hit ? "border-primary ring-2 ring-primary/50" : isOver ? "border-primary ring-2 ring-primary/40" : "border-border",
+                      dim && "opacity-30",
+                    )}
+                  >
+                    <span className="w-1 shrink-0" style={{ background: color }} />
+                    <span className="flex min-w-0 flex-1 flex-col justify-center px-2 py-1">
+                      <span className="truncate text-[12.5px] font-semibold leading-tight" style={{ color: "var(--foreground)" }}>{node.name}</span>
+                      <span className="flex items-center gap-1.5 truncate text-[10px] leading-tight text-muted-foreground">
+                        <span style={{ color }}>{td.label}</span>
+                        {(hc > 0 || vc > 0) && (
+                          <span className="inline-flex items-center gap-1">
+                            {hc > 0 && <><Users className="size-2.5" />{hc}</>}
+                            {vc > 0 && <><UserPlus className="size-2.5" />{vc}</>}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    {canEdit && (
+                      <button onClick={(e) => { e.stopPropagation(); onAddChild(node); }} title="Add child"
+                        className="hidden w-6 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex">
+                        <Plus className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {hasKids && (
+                    <button onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }} title={isCol ? "Expand" : "Collapse"}
+                      style={{ position: "absolute", right: -9, top: NODE_H / 2 - 9 }}
+                      className="z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-border bg-card px-1 text-[9px] font-bold text-muted-foreground shadow-sm hover:text-foreground">
+                      {isCol ? `+${hidden}` : "–"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {placed.length === 0 && <p className="p-16 text-center text-sm text-muted-foreground">No structure yet.</p>}
           </div>
         </div>
       </div>
 
-      {/* Legend + hints */}
+      {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {legend.slice(0, 10).map((t) => (
-          <span key={t.key} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full" style={{ background: t.color }} /> {t.label} <span className="tnum opacity-60">{t.count}</span>
+        {legend.map((g) => (
+          <span key={g.group} className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span>
           </span>
         ))}
-        <span className="ml-auto inline-flex items-center gap-1.5"><span className="h-0 w-6 border-t-2 border-dashed border-primary" /> Functional link</span>
-        {canEdit && <span>· drag to re-parent · drag empty space to pan</span>}
+        <span className="ml-auto">{units.length} units · Ctrl+scroll to zoom · drag empty space to pan{canEdit ? " · drag a card to re-parent" : ""}</span>
       </div>
     </div>
   );
 }
 
-function CtrlBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+function Ctrl({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title} className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
       {children}
