@@ -123,6 +123,7 @@ export default function OrganizationPage() {
         <OrgChart
           units={units}
           canEdit={canEdit}
+          title={org?.org?.name ?? "Organization"}
           positionsFor={positionsFor}
           onAddChild={(p) => setDialog({ unit: null, parentId: p.id, type: childTypeOf(p.type) })}
           onEdit={(u) => setDialog({ unit: u })}
