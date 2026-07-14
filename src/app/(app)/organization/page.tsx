@@ -272,10 +272,13 @@ function TableRows({
     <>
       <tr className="border-b border-border last:border-0 hover:bg-accent/40">
         <td className="px-4 py-2.5">
-          <span className="flex items-center" style={{ paddingLeft: node.depth * 20 }}>
-            {node.depth > 0 && <ChevronRight className="mr-1 size-3.5 text-muted-foreground/50" />}
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: td.color }} />
-            <span className="ml-2 font-medium">{node.name}</span>
+          <span className="flex items-start" style={{ paddingLeft: node.depth * 18 }}>
+            {node.depth > 0 && <ChevronRight className="mr-1 mt-0.5 size-3.5 shrink-0 text-muted-foreground/50" />}
+            <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ background: td.color }} />
+            <span className="ml-2 min-w-0">
+              <span className="block font-medium leading-tight">{node.name}</span>
+              {node.nameEn && <span className="block text-[11px] text-muted-foreground">{node.nameEn}</span>}
+            </span>
           </span>
         </td>
         <td className="px-3 py-2.5">

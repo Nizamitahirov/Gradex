@@ -7,6 +7,7 @@ import { getActor, getActiveOrgRef, actorCan, logActivity } from "@/lib/server/o
 interface IncomingNode {
   tmpId: string;
   name: string;
+  nameEn?: string;
   type: string;
   parentTmp: string | null;
   headcount?: number;
@@ -50,7 +51,8 @@ export async function POST(req: NextRequest) {
       for (const n of nodes.slice(i, i + 400)) {
         const id = idByTmp.get(n.tmpId)!;
         batch.set(col.doc(id), {
-          name: String(n.name).slice(0, 120),
+          name: String(n.name).slice(0, 160),
+          nameEn: n.nameEn ? String(n.nameEn).slice(0, 160) : null,
           type: n.type,
           parentId: n.parentTmp ? idByTmp.get(n.parentTmp) ?? null : null,
           functionalLinks: [],

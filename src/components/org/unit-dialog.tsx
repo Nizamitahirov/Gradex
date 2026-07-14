@@ -28,6 +28,7 @@ export function UnitDialog({
   const groups = typesByGroup();
 
   const [name, setName] = React.useState(unit?.name ?? "");
+  const [nameEn, setNameEn] = React.useState(unit?.nameEn ?? "");
   const [type, setType] = React.useState(unit?.type ?? defaultType ?? UNIT_TYPES[0].key);
   const [parentId, setParentId] = React.useState<string>(unit?.parentId ?? defaultParentId ?? NONE);
   const [headcount, setHeadcount] = React.useState(unit?.headcount ?? 0);
@@ -47,6 +48,7 @@ export function UnitDialog({
     try {
       const payload = {
         name: name.trim(),
+        nameEn: nameEn.trim(),
         type,
         parentId: parentId === NONE ? null : parentId,
         headcount: Number(headcount) || 0,
@@ -86,9 +88,15 @@ export function UnitDialog({
           <DialogDescription>Define the unit, its place in the hierarchy and its functional (dotted-line) links.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Finance" autoFocus />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Maliyyə" autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Name (EN) — optional</Label>
+              <Input value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Finance" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

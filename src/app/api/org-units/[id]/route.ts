@@ -16,6 +16,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!orgRef) return NextResponse.json({ success: false, error: "No company" }, { status: 404 });
     const update: Record<string, unknown> = { updatedAt: Date.now() };
     if (typeof body.name === "string") update.name = body.name.trim();
+    if (typeof body.nameEn === "string") update.nameEn = body.nameEn.trim() || null;
     if (typeof body.type === "string") update.type = body.type;
     if ("parentId" in body) update.parentId = body.parentId ?? null;
     if (Array.isArray(body.functionalLinks)) update.functionalLinks = body.functionalLinks;
