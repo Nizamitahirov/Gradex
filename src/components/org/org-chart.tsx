@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Plus, Search, X, ZoomIn, ZoomOut, Scan, Maximize2, Minimize2, ChevronsDownUp, ChevronsUpDown,
-  RotateCcw, Users, UserPlus, Download, PanelsTopLeft, Rows3, Columns3, Layers,
+  RotateCcw, Users, UserPlus, Download, PanelsTopLeft, Rows3, Columns3, Layers, LayoutGrid,
 } from "lucide-react";
 import { buildTree, descendantIds, typeDef, GROUP_COLOR, GROUP_LABEL, type OrgUnit, type TypeGroup } from "@/lib/org/structure";
 import {
@@ -138,6 +138,11 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Axtar / Search…" className="h-9 w-48 rounded-lg border border-border bg-card/95 pl-8 pr-7 text-sm shadow-sm outline-none backdrop-blur focus:border-primary" />
             {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>}
           </div>
+          {/* auto-arrange */}
+          <button onClick={fit} title="Auto-arrange — fit all open cards, no empty space"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card/95 px-3 text-sm font-medium shadow-sm backdrop-blur transition-colors hover:bg-accent">
+            <LayoutGrid className="size-4 text-primary" /> <span className="hidden sm:inline">Arrange</span>
+          </button>
           {/* orientation */}
           <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card/95 p-1 shadow-sm backdrop-blur">
             <Ctrl onClick={() => setOrientation("horizontal")} title="Horizontal" active={orientation === "horizontal"}><Columns3 className="size-4" /></Ctrl>
