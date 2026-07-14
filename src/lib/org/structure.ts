@@ -74,6 +74,18 @@ export const GROUP_LABEL: Record<TypeGroup, string> = {
   agile: "Agile",
 };
 
+/** Validated categorical palette (dataviz skill, light-mode checks all pass). */
+export const GROUP_COLOR: Record<TypeGroup, string> = {
+  governance: "#4F46E5",
+  non_agile: "#0891B2",
+  corporate: "#D97706",
+  agile: "#DB2777",
+};
+
+export function groupColorOf(typeKey: string): string {
+  return GROUP_COLOR[typeDef(typeKey).group];
+}
+
 /** Maps the English type strings used in the bulk edge-list export to type keys. */
 export const EXCEL_TYPE_MAP: Record<string, string> = {
   "governance body": "governance_body",
