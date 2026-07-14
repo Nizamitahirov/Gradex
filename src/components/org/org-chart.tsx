@@ -44,6 +44,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
+  const [hoverEdge, setHoverEdge] = React.useState<string | null>(null);
 
   const withChildren = React.useMemo(() => new Set(units.filter((u) => units.some((c) => c.parentId === u.id)).map((u) => u.id)), [units]);
   const groupIds = React.useMemo(() => [...parents.keys()].filter((id) => id.startsWith("grp:")), [parents]);
@@ -84,9 +85,10 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
   const fit = React.useCallback(() => {
     const vp = viewportRef.current;
     if (!vp || width <= 1 || height <= 1) return;
-    const z = Math.max(MIN_ZOOM, Math.min((vp.clientWidth - 64) / width, (vp.clientHeight - 64) / height, 1));
+    // Fill the viewport: scale up small trees (cap 1.4) so the page isn't half-empty, centre on both axes.
+    const z = Math.max(MIN_ZOOM, Math.min((vp.clientWidth - 48) / width, (vp.clientHeight - 48) / height, 1.4));
     setZoom(Math.round(z * 1000) / 1000);
-    setPan({ x: Math.max(24, (vp.clientWidth - width * z) / 2), y: Math.max(20, (vp.clientHeight - height * z) / 2) });
+    setPan({ x: (vp.clientWidth - width * z) / 2, y: (vp.clientHeight - height * z) / 2 });
   }, [width, height]);
   const didFit = React.useRef(false);
   React.useEffect(() => { if (!didFit.current && width > 1) { didFit.current = true; requestAnimationFrame(fit); } }, [width, fit]);
@@ -123,8 +125,12 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
   const exportHtml = () => download(buildHtml(fullLayout(), orientation, title), `${slug}-org-chart.html`, "text/html;charset=utf-8");
 
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-border bg-muted/30", fullscreen && "fixed inset-0 z-[60] rounded-none bg-background")}>
-      <div className="relative" style={{ height: fullscreen ? "100vh" : "76vh" }}>
+    <div
+      className={cn("flex flex-col overflow-hidden rounded-2xl border border-border bg-muted/30", fullscreen && "fixed inset-0 z-[60] rounded-none bg-background")}
+      style={fullscreen ? undefined : { height: "calc(100dvh - 236px)", minHeight: 520 }}
+    >
+      <style>{`@keyframes gx-flow { to { stroke-dashoffset: -28; } }`}</style>
+      <div className="relative min-h-0 flex-1">
         {/* Controls */}
         <div className="absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-2">
           <div className="relative">
@@ -165,10 +171,27 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
         <div ref={viewportRef} className="h-full w-full touch-none overflow-hidden" style={{ cursor: panning ? "grabbing" : "grab" }}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onWheel={onWheel}>
           <div className="relative origin-top-left" style={{ width, height, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
-            <svg className="pointer-events-none absolute left-0 top-0" width={width} height={height} style={{ overflow: "visible" }}>
-              {edges.map((e) => (
-                <path key={e.id} d={edgePath(e, orientation)} fill="none" stroke={e.dashed ? "var(--primary)" : "var(--border)"} strokeWidth={1.5} strokeDasharray={e.dashed ? "5 4" : undefined} opacity={e.dashed ? 0.6 : 1} />
-              ))}
+            <svg className="absolute left-0 top-0" width={width} height={height} style={{ overflow: "visible", pointerEvents: "none" }}>
+              {edges.map((e) => {
+                const d = edgePath(e, orientation);
+                const hov = hoverEdge === e.id;
+                return (
+                  <g key={e.id}>
+                    <path
+                      d={d} fill="none"
+                      stroke={hov ? "var(--primary)" : e.dashed ? "var(--primary)" : "var(--border)"}
+                      strokeWidth={hov ? 3 : 1.5}
+                      strokeLinecap="round"
+                      strokeDasharray={hov ? "7 7" : e.dashed ? "5 4" : undefined}
+                      opacity={hov ? 1 : e.dashed ? 0.6 : 1}
+                      style={hov ? { animation: "gx-flow .55s linear infinite" } : undefined}
+                    />
+                    {/* transparent wide hit target for hover */}
+                    <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      onMouseEnter={() => setHoverEdge(e.id)} onMouseLeave={() => setHoverEdge((h) => (h === e.id ? null : h))} />
+                  </g>
+                );
+              })}
             </svg>
 
             {placed.map(({ node, x, y, hasKids, open, hidden }) => {
@@ -239,7 +262,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-3 py-2 text-xs text-muted-foreground">
         {legend.map((g) => (
           <span key={g.grp} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span></span>
         ))}
