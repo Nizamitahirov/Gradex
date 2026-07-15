@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Plus, Search, X, ZoomIn, ZoomOut, Scan, Maximize2, Minimize2, ChevronsDownUp, ChevronsUpDown,
-  RotateCcw, Users, UserPlus, Download, PanelsTopLeft, Rows3, Columns3, Layers, LayoutGrid,
+  RotateCcw, Users, UserPlus, Download, PanelsTopLeft, Rows3, Columns3, Layers, LayoutGrid, Crosshair,
 } from "lucide-react";
 import { buildTree, descendantIds, typeDef, readableText, type OrgUnit } from "@/lib/org/structure";
 import {
@@ -45,10 +45,18 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
   const [overId, setOverId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [hoverEdge, setHoverEdge] = React.useState<string | null>(null);
+  const [focusId, setFocusId] = React.useState<string | null>(null);
 
   const withChildren = React.useMemo(() => new Set(units.filter((u) => units.some((c) => c.parentId === u.id)).map((u) => u.id)), [units]);
   const groupIds = React.useMemo(() => [...parents.keys()].filter((id) => id.startsWith("grp:")), [parents]);
   const blocked = React.useMemo(() => (dragId ? new Set([dragId, ...descendantIds(units, dragId)]) : new Set<string>()), [dragId, units]);
+  const unitById = React.useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);
+  const nodeIndex = React.useMemo(() => {
+    const m = new Map<string, ANode>();
+    const walk = (n: ANode) => { m.set(n.id, n); n.children.forEach(walk); };
+    aroots.forEach(walk);
+    return m;
+  }, [aroots]);
 
   const searchLc = search.trim().toLowerCase();
   const searchActive = searchLc.length > 0;
@@ -65,10 +73,37 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
     return { matches, forceOpen };
   }, [searchLc, units, parents]);
 
+  // Focus mode: pressing Enter isolates one structure — its ancestors (the path
+  // to the root) plus its whole subtree — and dims everything else.
+  const focus = React.useMemo(() => {
+    if (!focusId || !nodeIndex.has(focusId)) return null;
+    const related = new Set<string>();
+    let p = parents.get(focusId) ?? null;
+    while (p) { related.add(p); p = parents.get(p) ?? null; }
+    const walk = (n: ANode) => { related.add(n.id); n.children.forEach(walk); };
+    walk(nodeIndex.get(focusId)!);
+    return { related };
+  }, [focusId, parents, nodeIndex]);
+
   const isOpen = React.useCallback((n: ANode) => {
+    if (focus && focus.related.has(n.id)) return true;
     if (searchActive && forceOpen.has(n.id)) return true;
     return n.isGroup ? groupOpen.has(n.id) : !collapsed.has(n.id);
-  }, [searchActive, forceOpen, groupOpen, collapsed]);
+  }, [focus, searchActive, forceOpen, groupOpen, collapsed]);
+
+  // Choose the best match to focus: exact name first, then prefix, then order.
+  const focusBestMatch = React.useCallback(() => {
+    if (!matches.size) return;
+    const score = (id: string) => {
+      const u = unitById.get(id); const a = (u?.name ?? "").toLowerCase(), b = (u?.nameEn ?? "").toLowerCase();
+      if (a === searchLc || b === searchLc) return 0;
+      if (a.startsWith(searchLc) || b.startsWith(searchLc)) return 1;
+      return 2;
+    };
+    const best = [...matches].sort((x, y) => score(x) - score(y))[0];
+    setFocusId(best);
+  }, [matches, unitById, searchLc]);
+  const clearSearch = () => { setSearch(""); setFocusId(null); };
 
   const { placed, edges, width, height } = React.useMemo(
     () => computeLayout(aroots, orientation, isOpen),
@@ -91,9 +126,29 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
     setZoom(Math.round(z * 1000) / 1000);
     setPan({ x: (vp.clientWidth - width * z) / 2, y: (vp.clientHeight - height * z) / 2 });
   }, [width, height]);
+  // Fit an arbitrary region (used to zoom onto a focused structure).
+  const fitTo = React.useCallback((x0: number, y0: number, x1: number, y1: number) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);
+    const z = Math.max(MIN_ZOOM, Math.min((vp.clientWidth - 120) / w, (vp.clientHeight - 120) / h, 1.3));
+    setZoom(Math.round(z * 1000) / 1000);
+    setPan({ x: (vp.clientWidth - w * z) / 2 - x0 * z, y: (vp.clientHeight - h * z) / 2 - y0 * z });
+  }, []);
   const didFit = React.useRef(false);
   React.useEffect(() => { if (!didFit.current && width > 1) { didFit.current = true; requestAnimationFrame(fit); } }, [width, fit]);
-  React.useEffect(() => { requestAnimationFrame(fit); }, [fullscreen, orientation, fit]);
+  React.useEffect(() => { if (!focusId) requestAnimationFrame(fit); }, [fullscreen, orientation, fit, focusId]);
+
+  // When a structure is focused, zoom/pan to fit its related cards.
+  React.useEffect(() => {
+    if (!focusId || !focus) return;
+    const pts = placed.filter((p) => focus.related.has(p.node.id));
+    if (!pts.length) return;
+    const x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x + NODE_W));
+    const y0 = Math.min(...pts.map((p) => p.y)), y1 = Math.max(...pts.map((p) => p.y + NODE_H));
+    const raf = requestAnimationFrame(() => fitTo(x0, y0, x1, y1));
+    return () => cancelAnimationFrame(raf);
+  }, [focusId, focus, placed, fitTo]);
 
   const panState = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
@@ -150,8 +205,18 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
         <div className="absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Axtar / Search…" className="h-9 w-48 rounded-lg border border-border bg-card/95 pl-8 pr-7 text-sm shadow-sm outline-none backdrop-blur focus:border-primary" />
-            {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>}
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); if (!e.target.value) setFocusId(null); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); focusBestMatch(); }
+                else if (e.key === "Escape") clearSearch();
+              }}
+              placeholder="Axtar → Enter…"
+              title="Type and press Enter to focus that structure"
+              className={cn("h-9 w-52 rounded-lg border bg-card/95 pl-8 pr-7 text-sm shadow-sm outline-none backdrop-blur focus:border-primary", focusId ? "border-primary" : "border-border")}
+            />
+            {(search || focusId) && <button onClick={clearSearch} title="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>}
           </div>
           {/* auto-arrange */}
           <button onClick={fit} title="Auto-arrange — fit all open cards, no empty space"
@@ -187,6 +252,18 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
           </div>
         </div>
 
+        {/* Focus banner */}
+        {focus && focusId && nodeIndex.has(focusId) && (
+          <div className="absolute left-3 top-3 z-20 flex max-w-[min(90%,520px)] items-center gap-2 rounded-lg border border-primary/40 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur">
+            <Crosshair className="size-4 shrink-0 text-primary" />
+            <span className="min-w-0">
+              <span className="font-semibold">{nodeIndex.get(focusId)!.name}</span>
+              <span className="ml-1.5 text-xs text-muted-foreground">{focus.related.size} əlaqəli kart · related</span>
+            </span>
+            <button onClick={clearSearch} className="ml-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10">Hamısını göstər</button>
+          </div>
+        )}
+
         {/* Canvas */}
         <div ref={viewportRef} className="h-full w-full touch-none overflow-hidden" style={{ cursor: panning ? "grabbing" : "grab" }}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onWheel={onWheel}>
@@ -195,6 +272,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
               {edges.map((e) => {
                 const d = edgePath(e, orientation);
                 const hov = hoverEdge === e.id;
+                const eDim = !!focus && !(focus.related.has(e.from ?? "") && focus.related.has(e.to ?? ""));
                 return (
                   <g key={e.id}>
                     <path
@@ -203,7 +281,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
                       strokeWidth={hov ? 3 : 1.5}
                       strokeLinecap="round"
                       strokeDasharray={hov ? "7 7" : e.dashed ? "5 4" : undefined}
-                      opacity={hov ? 1 : e.dashed ? 0.6 : 1}
+                      opacity={eDim ? 0.08 : hov ? 1 : e.dashed ? 0.6 : 1}
                       style={hov ? { animation: "gx-flow .55s linear infinite" } : undefined}
                     />
                     {/* transparent wide hit target for hover */}
@@ -216,8 +294,8 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
 
             {placed.map(({ node, x, y, hasKids, open, hidden }) => {
               const td = typeDef(node.type);
-              const hit = searchActive && matches.has(node.id);
-              const dim = searchActive && !matches.has(node.id) && !forceOpen.has(node.id);
+              const hit = focus ? node.id === focusId : (searchActive && matches.has(node.id));
+              const dim = focus ? !focus.related.has(node.id) : (searchActive && !matches.has(node.id) && !forceOpen.has(node.id));
               const isOver = overId === node.id && dragId && !blocked.has(node.id);
               const hc = node.headcount ?? 0, vc = node.vacancies ?? 0, pos = node.unit ? positionsFor(node.unit) : 0;
               const fg = readableText(node.color);
@@ -287,7 +365,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
         {legend.map((g) => (
           <span key={g.type} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] border border-black/10" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span></span>
         ))}
-        <span className="ml-auto">{units.length} units · same-type groups fold when &gt; 5 · scroll to zoom · drag to pan</span>
+        <span className="ml-auto">{units.length} units · axtar + Enter = fokus · scroll = zoom · drag = pan</span>
       </div>
     </div>
   );

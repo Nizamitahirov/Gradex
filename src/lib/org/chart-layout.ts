@@ -80,7 +80,7 @@ export function parentMap(roots: ANode[]): Map<string, string | null> {
 }
 
 export interface Placed { node: ANode; x: number; y: number; hasKids: boolean; open: boolean; hidden: number }
-export interface Edge { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean; dir?: "right" | "down" }
+export interface Edge { id: string; from?: string; to?: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean; dir?: "right" | "down" }
 export interface Layout { placed: Placed[]; edges: Edge[]; width: number; height: number }
 
 /** Wrap a sibling set into a grid when there are more than this many. */
@@ -127,27 +127,33 @@ export function computeLayout(roots: ANode[], orientation: Orientation, isOpen: 
       contentDepthH = maxH;
       nodeCross = (anchors[0] + anchors[anchors.length - 1]) / 2 - NC / 2;
     } else {
-      // grid: cells sized to child subtrees. Column count is orientation-aware so
-      // the packed block runs WITH the long axis, not against it — horizontal
-      // charts grow rightwards (more columns → shorter), vertical charts grow
-      // downwards (fewer columns → narrower). This is what keeps the whole chart
-      // filling the screen instead of sprawling along the cross axis.
+      // masonry: pack children into a few cross-lanes, each lane tightly stacked
+      // along depth. Every child drops into the currently-SHORTEST lane, so no
+      // lane is left with a big empty tail — gaps get filled instead of leaving a
+      // ragged grid. Lane count is orientation-aware so the block runs with the
+      // long axis and the whole chart stays near-square.
       const n = kids.length;
-      const cols = horiz
-        ? Math.ceil(Math.sqrt(n))           // near-square, slightly landscape
-        : Math.max(1, Math.floor(Math.sqrt(n))); // portrait: fewer columns, more rows
-      const rows = Math.ceil(n / cols);
-      const colW = new Array(cols).fill(0), rowH = new Array(rows).fill(0);
-      subs.forEach((s, i) => { const c = i % cols, r = Math.floor(i / cols); colW[c] = Math.max(colW[c], s.crossW); rowH[r] = Math.max(rowH[r], s.depthH); });
-      const colX: number[] = []; { let x = 0; for (let c = 0; c < cols; c++) { colX[c] = x; x += colW[c] + SGAP; } }
-      const rowY: number[] = []; { let y = 0; for (let r = 0; r < rows; r++) { rowY[r] = y; y += rowH[r] + DGAP; } }
+      const lanes = horiz
+        ? Math.ceil(Math.sqrt(n))              // slightly landscape
+        : Math.max(1, Math.round(Math.sqrt(n) * 0.7)); // portrait
+      const laneDepth = new Array(lanes).fill(0);  // running depth used per lane
+      const laneCrossW = new Array(lanes).fill(0); // widest child in the lane
+      const laneOf = new Array(subs.length), depthAt = new Array(subs.length);
       subs.forEach((s, i) => {
-        const c = i % cols, r = Math.floor(i / cols);
-        const cx = colX[c] + (colW[c] - s.crossW) / 2;
-        for (const it of s.items) items.push({ node: it.node, cross: it.cross + cx, depth: it.depth + rowY[r] });
+        let b = 0;
+        for (let k = 1; k < lanes; k++) if (laneDepth[k] < laneDepth[b] - 0.001) b = k;
+        laneOf[i] = b; depthAt[i] = laneDepth[b];
+        laneDepth[b] += s.depthH + DGAP;
+        laneCrossW[b] = Math.max(laneCrossW[b], s.crossW);
       });
-      contentCrossW = colX[cols - 1] + colW[cols - 1];
-      contentDepthH = rowY[rows - 1] + rowH[rows - 1];
+      const laneCrossX: number[] = []; { let x = 0; for (let b = 0; b < lanes; b++) { laneCrossX[b] = x; x += laneCrossW[b] + SGAP; } }
+      subs.forEach((s, i) => {
+        const b = laneOf[i];
+        const cx = laneCrossX[b] + (laneCrossW[b] - s.crossW) / 2;
+        for (const it of s.items) items.push({ node: it.node, cross: it.cross + cx, depth: it.depth + depthAt[i] });
+      });
+      contentCrossW = laneCrossX[lanes - 1] + laneCrossW[lanes - 1];
+      contentDepthH = Math.max(...laneDepth) - DGAP;
       nodeCross = (contentCrossW - NC) / 2;
     }
 
@@ -184,14 +190,14 @@ export function computeLayout(roots: ANode[], orientation: Orientation, isOpen: 
       const a = pos.get(p.node.id)!, b = pos.get(k.id);
       if (!b) continue;
       edges.push(horiz
-        ? { id: `${p.node.id}-${k.id}`, x1: a.x + NODE_W, y1: a.y + NODE_H / 2, x2: b.x, y2: b.y + NODE_H / 2 }
-        : { id: `${p.node.id}-${k.id}`, x1: a.x + NODE_W / 2, y1: a.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y });
+        ? { id: `${p.node.id}-${k.id}`, from: p.node.id, to: k.id, x1: a.x + NODE_W, y1: a.y + NODE_H / 2, x2: b.x, y2: b.y + NODE_H / 2 }
+        : { id: `${p.node.id}-${k.id}`, from: p.node.id, to: k.id, x1: a.x + NODE_W / 2, y1: a.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y });
     }
   }
   for (const p of placed) {
     for (const t of p.node.functionalLinks ?? []) {
       const b = pos.get(t);
-      if (b) edges.push({ id: `f-${p.node.id}-${t}`, x1: p.x + NODE_W / 2, y1: p.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y, dashed: true });
+      if (b) edges.push({ id: `f-${p.node.id}-${t}`, from: p.node.id, to: t, x1: p.x + NODE_W / 2, y1: p.y + NODE_H, x2: b.x + NODE_W / 2, y2: b.y, dashed: true });
     }
   }
 
