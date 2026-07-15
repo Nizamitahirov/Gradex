@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   units: OrgUnit[];
   canEdit: boolean;
+  editMode?: boolean;
   title?: string;
   positionsFor: (u: OrgUnit) => number;
   onAddChild: (parent: OrgUnit) => void;
@@ -28,7 +29,8 @@ interface Props {
 const MIN_ZOOM = 0.06;
 const MAX_ZOOM = 1.6;
 
-export function OrgChart({ units, canEdit, title = "Organization", positionsFor, onAddChild, onEdit, onReparent }: Props) {
+export function OrgChart({ units, canEdit, editMode = false, title = "Organization", positionsFor, onAddChild, onEdit, onReparent }: Props) {
+  const dnd = canEdit && editMode; // drag-to-reparent only in edit mode
   const roots = React.useMemo(() => buildTree(units), [units]);
   const aroots = React.useMemo(() => augmentTree(roots, true), [roots]);
   const parents = React.useMemo(() => parentMap(aroots), [aroots]);
@@ -272,16 +274,18 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
               {edges.map((e) => {
                 const d = edgePath(e, orientation);
                 const hov = hoverEdge === e.id;
-                const eDim = !!focus && !(focus.related.has(e.from ?? "") && focus.related.has(e.to ?? ""));
+                const eRelated = !!focus && focus.related.has(e.from ?? "") && focus.related.has(e.to ?? "");
+                const eDim = !!focus && !eRelated;
+                const spot = eRelated && !hov; // spotlight the found structure's links
                 return (
                   <g key={e.id}>
                     <path
                       d={d} fill="none"
-                      stroke={hov ? "var(--primary)" : e.dashed ? "var(--primary)" : "var(--border)"}
-                      strokeWidth={hov ? 3 : 1.5}
+                      stroke={hov || spot ? "var(--primary)" : e.dashed ? "var(--primary)" : "var(--border)"}
+                      strokeWidth={hov ? 3 : spot ? 2.4 : 1.5}
                       strokeLinecap="round"
                       strokeDasharray={hov ? "7 7" : e.dashed ? "5 4" : undefined}
-                      opacity={eDim ? 0.08 : hov ? 1 : e.dashed ? 0.6 : 1}
+                      opacity={eDim ? 0.06 : hov || spot ? 1 : e.dashed ? 0.6 : 1}
                       style={hov ? { animation: "gx-flow .55s linear infinite" } : undefined}
                     />
                     {/* transparent wide hit target for hover */}
@@ -295,16 +299,18 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
             {placed.map(({ node, x, y, hasKids, open, hidden }) => {
               const td = typeDef(node.type);
               const hit = focus ? node.id === focusId : (searchActive && matches.has(node.id));
-              const dim = focus ? !focus.related.has(node.id) : (searchActive && !matches.has(node.id) && !forceOpen.has(node.id));
+              const spot = !!focus && focus.related.has(node.id); // in the found structure
+              const dim = focus ? !spot : (searchActive && !matches.has(node.id) && !forceOpen.has(node.id));
               const isOver = overId === node.id && dragId && !blocked.has(node.id);
+              const draggable = dnd && !node.isGroup;
               const hc = node.headcount ?? 0, vc = node.vacancies ?? 0, pos = node.unit ? positionsFor(node.unit) : 0;
               const fg = readableText(node.color);
               const sub = fg === "#ffffff" ? "rgba(255,255,255,0.82)" : "rgba(26,28,46,0.62)";
               return (
                 <div key={node.id} data-node style={{ position: "absolute", left: x, top: y, width: NODE_W, height: NODE_H }}>
                   <div
-                    draggable={canEdit && !node.isGroup}
-                    onDragStart={(e) => { if (!node.isGroup) { setDragId(node.id); e.dataTransfer.effectAllowed = "move"; } }}
+                    draggable={draggable}
+                    onDragStart={(e) => { if (draggable) { setDragId(node.id); e.dataTransfer.effectAllowed = "move"; } }}
                     onDragEnd={() => { setDragId(null); setOverId(null); }}
                     onDragOver={(e) => { if (dragId && !node.isGroup && !blocked.has(node.id)) { e.preventDefault(); setOverId(node.id); } }}
                     onDragLeave={() => setOverId((c) => (c === node.id ? null : c))}
@@ -312,13 +318,19 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
                     onClick={() => { if (node.isGroup) toggleNode(node); else if (canEdit && node.unit) onEdit(node.unit); }}
                     title={`${node.name}${node.nameEn ? " — " + node.nameEn : ""}${node.isGroup ? "" : " · " + td.label + (hc || vc || pos ? ` · ${hc} emp / ${vc} vac / ${pos} pos` : "")}`}
                     className={cn(
-                      "group flex h-full w-full items-stretch overflow-hidden rounded-md border shadow-sm transition-shadow",
+                      "group flex h-full w-full items-stretch overflow-hidden rounded-md border shadow-sm transition-all",
                       (canEdit || node.isGroup) && "cursor-pointer hover:shadow-md",
-                      hit ? "ring-2 ring-primary ring-offset-1" : isOver ? "ring-2 ring-primary/60" : "",
+                      draggable && "cursor-grab active:cursor-grabbing",
+                      hit ? "ring-2 ring-primary ring-offset-2" : isOver ? "ring-2 ring-primary/60" : spot ? "ring-1 ring-primary/60" : "",
                       node.isGroup && "border-dashed",
-                      dim && "opacity-30",
+                      dim && "opacity-25 saturate-50",
                     )}
-                    style={{ background: node.color, borderColor: "rgba(0,0,0,0.16)" }}
+                    style={{
+                      background: node.color,
+                      borderColor: "rgba(0,0,0,0.16)",
+                      ...(hit ? { boxShadow: "0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent), 0 8px 22px rgba(0,0,0,0.18)" }
+                        : spot ? { boxShadow: "0 6px 16px rgba(0,0,0,0.14)" } : {}),
+                    }}
                   >
                     <span className="flex min-w-0 flex-1 flex-col justify-center px-2.5 py-1">
                       <span className="truncate text-[12px] font-bold leading-tight" style={{ color: fg }}>{node.name}</span>
@@ -365,7 +377,11 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
         {legend.map((g) => (
           <span key={g.type} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] border border-black/10" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span></span>
         ))}
-        <span className="ml-auto">{units.length} units · axtar + Enter = fokus · scroll = zoom · drag = pan</span>
+        <span className="ml-auto">
+          {dnd
+            ? <span className="font-medium text-primary">Redaktə rejimi — kartı sürüşdürüb başqa qovşağa buraxın</span>
+            : <>{units.length} units · axtar + Enter = fokus · scroll = zoom · drag = pan</>}
+        </span>
       </div>
     </div>
   );
