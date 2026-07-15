@@ -3,7 +3,7 @@
  * Used by the interactive chart and by the SVG/HTML export so both stay in sync.
  */
 
-import { typeDef, groupColorOf, type OrgNode, type OrgUnit } from "./structure";
+import { typeDef, unitColor, readableText, type OrgNode, type OrgUnit } from "./structure";
 
 export type Orientation = "horizontal" | "vertical";
 
@@ -48,7 +48,7 @@ export function augmentTree(roots: OrgNode[], group: boolean): ANode[] {
             id: `grp:${n.id}:${t}`,
             isGroup: true,
             type: t,
-            color: groupColorOf(t),
+            color: typeDef(t).color,
             name: `${td.labelAz ?? td.label} ×${members.length}`,
             nameEn: `${td.label} ×${members.length}`,
             children: members.map(conv),
@@ -59,7 +59,7 @@ export function augmentTree(roots: OrgNode[], group: boolean): ANode[] {
       }
     }
     return {
-      id: n.id, name: n.name, nameEn: n.nameEn, type: n.type, color: groupColorOf(n.type),
+      id: n.id, name: n.name, nameEn: n.nameEn, type: n.type, color: unitColor(n.type, n.name, n.nameEn),
       isGroup: false, headcount: n.headcount, vacancies: n.vacancies, functionalLinks: n.functionalLinks,
       unit: n as OrgUnit, children,
     };
@@ -80,18 +80,19 @@ export function parentMap(roots: ANode[]): Map<string, string | null> {
 }
 
 export interface Placed { node: ANode; x: number; y: number; hasKids: boolean; open: boolean; hidden: number }
-export interface Edge { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean }
+export interface Edge { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean; dir?: "right" | "down" }
 export interface Layout { placed: Placed[]; edges: Edge[]; width: number; height: number }
 
 /** Wrap a sibling set into a grid when there are more than this many. */
 export const GRID_WRAP = 5;
 
 /**
- * Recursive bounding-box packing layout. Each subtree is laid out and reduced to
- * a box; a node's children are placed in a single row when few, or a ~square
- * grid when many (> GRID_WRAP) — sizing each grid cell to the child's own
- * subtree. This keeps the chart compact in BOTH directions (no sideways sprawl)
- * whether or not children have their own subtrees. Works for both orientations.
+ * Recursive bounding-box packing. Each subtree is laid out and reduced to a box;
+ * a node's children go in a single row when few, or a grid when many (sized to
+ * each child's own subtree). Column count is orientation-aware so the chart runs
+ * WITH the long axis — this keeps it near-square (no sideways sprawl) and fills
+ * the screen in both orientations. Connectors render as orthogonal elbows and
+ * boxes are filled by role, matching the client's reference org chart.
  */
 export function computeLayout(roots: ANode[], orientation: Orientation, isOpen: (n: ANode) => boolean): Layout {
   const horiz = orientation === "horizontal";
@@ -199,13 +200,26 @@ export function computeLayout(roots: ANode[], orientation: Orientation, isOpen: 
   return { placed, edges, width, height };
 }
 
+/**
+ * Orthogonal "elbow" connector with small rounded corners — the classic
+ * org-chart comb look from the client's reference chart. Horizontal charts turn
+ * at the midpoint X, vertical charts at the midpoint Y.
+ */
 export function edgePath(e: Edge, orientation: Orientation): string {
-  if (orientation === "horizontal") {
+  const R = 7;
+  const dir = e.dir ?? (orientation === "horizontal" ? "right" : "down");
+  if (dir === "right") {
     const mx = (e.x1 + e.x2) / 2;
-    return `M ${e.x1} ${e.y1} C ${mx} ${e.y1}, ${mx} ${e.y2}, ${e.x2} ${e.y2}`;
+    if (Math.abs(e.y2 - e.y1) < 1) return `M ${e.x1} ${e.y1} L ${e.x2} ${e.y2}`;
+    const s = e.y2 > e.y1 ? 1 : -1;
+    const r = Math.min(R, Math.abs(e.y2 - e.y1) / 2, Math.abs(mx - e.x1));
+    return `M ${e.x1} ${e.y1} H ${mx - r} Q ${mx} ${e.y1} ${mx} ${e.y1 + s * r} V ${e.y2 - s * r} Q ${mx} ${e.y2} ${mx + r} ${e.y2} H ${e.x2}`;
   }
   const my = (e.y1 + e.y2) / 2;
-  return `M ${e.x1} ${e.y1} C ${e.x1} ${my}, ${e.x2} ${my}, ${e.x2} ${e.y2}`;
+  if (Math.abs(e.x2 - e.x1) < 1) return `M ${e.x1} ${e.y1} L ${e.x2} ${e.y2}`;
+  const s = e.x2 > e.x1 ? 1 : -1;
+  const r = Math.min(R, Math.abs(e.x2 - e.x1) / 2, Math.abs(my - e.y1));
+  return `M ${e.x1} ${e.y1} V ${my - r} Q ${e.x1} ${my} ${e.x1 + s * r} ${my} H ${e.x2 - s * r} Q ${e.x2} ${my} ${e.x2} ${my + r} V ${e.y2}`;
 }
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -214,19 +228,20 @@ const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g,
 export function buildSvg(layout: Layout, orientation: Orientation): string {
   const { placed, edges, width, height } = layout;
   const paths = edges.map((e) =>
-    `<path d="${edgePath(e, orientation)}" fill="none" stroke="${e.dashed ? "#5B5BF5" : "#cbd2e0"}" stroke-width="1.5"${e.dashed ? ' stroke-dasharray="5 4" opacity="0.6"' : ""}/>`,
+    `<path d="${edgePath(e, orientation)}" fill="none" stroke="${e.dashed ? "#C0561E" : "#b7bcc7"}" stroke-width="1.4"${e.dashed ? ' stroke-dasharray="5 4" opacity="0.7"' : ""}/>`,
   ).join("");
   const nodes = placed.map(({ node, x, y }) => {
     const c = node.color;
+    const fg = readableText(c);
+    const sub = fg === "#ffffff" ? "rgba(255,255,255,0.82)" : "rgba(26,28,46,0.66)";
     const az = esc(node.name);
     const en = esc(node.nameEn ?? "");
     const typeLabel = esc(node.isGroup ? "Group" : typeDef(node.type).label);
     return `<g transform="translate(${x},${y})">
-      <rect width="${NODE_W}" height="${NODE_H}" rx="8" fill="#ffffff" stroke="${node.isGroup ? c : "#e4e8f0"}" ${node.isGroup ? 'stroke-dasharray="4 3"' : ""}/>
-      <rect width="5" height="${NODE_H}" rx="2.5" fill="${c}"/>
-      <text x="14" y="19" font-family="Segoe UI, system-ui, sans-serif" font-size="12.5" font-weight="600" fill="#0f1129">${az.slice(0, 34)}</text>
-      <text x="14" y="34" font-family="Segoe UI, system-ui, sans-serif" font-size="10.5" fill="#6b6f8a">${en.slice(0, 40)}</text>
-      <text x="14" y="47" font-family="Segoe UI, system-ui, sans-serif" font-size="9" font-weight="600" fill="${c}">${typeLabel}</text>
+      <rect width="${NODE_W}" height="${NODE_H}" rx="7" fill="${c}" stroke="rgba(0,0,0,0.14)" stroke-width="1"${node.isGroup ? ' stroke-dasharray="4 3"' : ""}/>
+      <text x="12" y="19" font-family="Segoe UI, system-ui, sans-serif" font-size="12" font-weight="700" fill="${fg}">${az.slice(0, 36)}</text>
+      <text x="12" y="34" font-family="Segoe UI, system-ui, sans-serif" font-size="10" fill="${sub}">${en.slice(0, 42)}</text>
+      <text x="12" y="47" font-family="Segoe UI, system-ui, sans-serif" font-size="8.5" font-weight="600" letter-spacing="0.4" fill="${sub}">${typeLabel.toUpperCase()}</text>
     </g>`;
   }).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width)}" height="${Math.ceil(height)}" viewBox="0 0 ${Math.ceil(width)} ${Math.ceil(height)}"><rect width="100%" height="100%" fill="#fcfcfb"/>${paths}${nodes}</svg>`;

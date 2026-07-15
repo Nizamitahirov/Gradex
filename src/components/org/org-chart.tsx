@@ -5,7 +5,7 @@ import {
   Plus, Search, X, ZoomIn, ZoomOut, Scan, Maximize2, Minimize2, ChevronsDownUp, ChevronsUpDown,
   RotateCcw, Users, UserPlus, Download, PanelsTopLeft, Rows3, Columns3, Layers, LayoutGrid,
 } from "lucide-react";
-import { buildTree, descendantIds, typeDef, GROUP_COLOR, GROUP_LABEL, type OrgUnit, type TypeGroup } from "@/lib/org/structure";
+import { buildTree, descendantIds, typeDef, readableText, type OrgUnit } from "@/lib/org/structure";
 import {
   augmentTree, computeLayout, parentMap, edgePath, buildSvg, buildHtml, NODE_W, NODE_H,
   type ANode, type Orientation,
@@ -75,10 +75,11 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
     [aroots, orientation, isOpen],
   );
 
+  // Per-type legend (matches the client reference chart: colored by role).
   const legend = React.useMemo(() => {
-    const g = new Map<TypeGroup, number>();
-    units.forEach((u) => { const grp = typeDef(u.type).group; g.set(grp, (g.get(grp) ?? 0) + 1); });
-    return [...g.entries()].map(([grp, count]) => ({ grp, label: GROUP_LABEL[grp], color: GROUP_COLOR[grp], count })).sort((a, b) => b.count - a.count);
+    const g = new Map<string, number>();
+    units.forEach((u) => g.set(u.type, (g.get(u.type) ?? 0) + 1));
+    return [...g.entries()].map(([type, count]) => ({ type, label: typeDef(type).label, color: typeDef(type).color, count })).sort((a, b) => b.count - a.count);
   }, [units]);
 
   // fit / pan / zoom
@@ -102,7 +103,21 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
   };
   const onPointerMove = (e: React.PointerEvent) => { if (panState.current) setPan({ x: panState.current.px + (e.clientX - panState.current.x), y: panState.current.py + (e.clientY - panState.current.y) }); };
   const onPointerUp = (e: React.PointerEvent) => { panState.current = null; setPanning(false); try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ } };
-  const onWheel = (e: React.WheelEvent) => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z - e.deltaY * 0.001) * 1000) / 1000))); };
+  // Scroll wheel zooms toward the cursor; the whole canvas pans by dragging.
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const vp = viewportRef.current;
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    setZoom((z) => {
+      const nz = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(z * factor * 1000) / 1000));
+      if (vp) {
+        const rect = vp.getBoundingClientRect();
+        const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        setPan((p) => ({ x: cx - ((cx - p.x) / z) * nz, y: cy - ((cy - p.y) / z) * nz }));
+      }
+      return nz;
+    });
+  };
   const zoomBy = (d: number) => setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((z + d) * 100) / 100)));
 
   const expandAll = () => { setCollapsed(new Set()); setGroupOpen(new Set(groupIds)); };
@@ -205,6 +220,8 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
               const dim = searchActive && !matches.has(node.id) && !forceOpen.has(node.id);
               const isOver = overId === node.id && dragId && !blocked.has(node.id);
               const hc = node.headcount ?? 0, vc = node.vacancies ?? 0, pos = node.unit ? positionsFor(node.unit) : 0;
+              const fg = readableText(node.color);
+              const sub = fg === "#ffffff" ? "rgba(255,255,255,0.82)" : "rgba(26,28,46,0.62)";
               return (
                 <div key={node.id} data-node style={{ position: "absolute", left: x, top: y, width: NODE_W, height: NODE_H }}>
                   <div
@@ -217,26 +234,25 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
                     onClick={() => { if (node.isGroup) toggleNode(node); else if (canEdit && node.unit) onEdit(node.unit); }}
                     title={`${node.name}${node.nameEn ? " — " + node.nameEn : ""}${node.isGroup ? "" : " · " + td.label + (hc || vc || pos ? ` · ${hc} emp / ${vc} vac / ${pos} pos` : "")}`}
                     className={cn(
-                      "group flex h-full w-full items-stretch overflow-hidden rounded-lg border bg-card shadow-[var(--shadow-card)] transition-shadow",
+                      "group flex h-full w-full items-stretch overflow-hidden rounded-md border shadow-sm transition-shadow",
                       (canEdit || node.isGroup) && "cursor-pointer hover:shadow-md",
-                      hit ? "border-primary ring-2 ring-primary/50" : isOver ? "border-primary ring-2 ring-primary/40" : "border-border",
+                      hit ? "ring-2 ring-primary ring-offset-1" : isOver ? "ring-2 ring-primary/60" : "",
                       node.isGroup && "border-dashed",
                       dim && "opacity-30",
                     )}
-                    style={node.isGroup ? { borderColor: node.color, background: `${node.color}0d` } : undefined}
+                    style={{ background: node.color, borderColor: "rgba(0,0,0,0.16)" }}
                   >
-                    <span className="w-1.5 shrink-0" style={{ background: node.color }} />
-                    <span className="flex min-w-0 flex-1 flex-col justify-center px-2 py-1">
-                      <span className="truncate text-[12.5px] font-semibold leading-tight text-foreground">{node.name}</span>
-                      {node.nameEn && <span className="truncate text-[10.5px] leading-tight text-muted-foreground">{node.nameEn}</span>}
-                      <span className="flex items-center gap-1.5 truncate text-[9px] font-semibold uppercase leading-tight tracking-wide">
+                    <span className="flex min-w-0 flex-1 flex-col justify-center px-2.5 py-1">
+                      <span className="truncate text-[12px] font-bold leading-tight" style={{ color: fg }}>{node.name}</span>
+                      {node.nameEn && <span className="truncate text-[10px] leading-tight" style={{ color: sub }}>{node.nameEn}</span>}
+                      <span className="flex items-center gap-1.5 truncate text-[8.5px] font-semibold uppercase leading-tight tracking-wide" style={{ color: sub }}>
                         {node.isGroup ? (
-                          <span className="inline-flex items-center gap-1" style={{ color: node.color }}><Layers className="size-2.5" /> {open ? "Açıq / open" : "Qrup · klik et"}</span>
+                          <span className="inline-flex items-center gap-1"><Layers className="size-2.5" /> {open ? "Açıq / open" : "Qrup · klik et"}</span>
                         ) : (
                           <>
-                            <span style={{ color: node.color }}>{td.label}</span>
+                            <span>{td.label}</span>
                             {(hc > 0 || vc > 0) && (
-                              <span className="inline-flex items-center gap-1 normal-case text-muted-foreground">
+                              <span className="inline-flex items-center gap-1 normal-case">
                                 {hc > 0 && <><Users className="size-2.5" />{hc}</>}
                                 {vc > 0 && <><UserPlus className="size-2.5" />{vc}</>}
                               </span>
@@ -246,7 +262,7 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
                       </span>
                     </span>
                     {canEdit && !node.isGroup && (
-                      <button onClick={(e) => { e.stopPropagation(); if (node.unit) onAddChild(node.unit); }} title="Add child" className="hidden w-6 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex">
+                      <button onClick={(e) => { e.stopPropagation(); if (node.unit) onAddChild(node.unit); }} title="Add child" className="hidden w-6 shrink-0 items-center justify-center border-l group-hover:flex" style={{ borderColor: "rgba(0,0,0,0.16)", color: fg }}>
                         <Plus className="size-3.5" />
                       </button>
                     )}
@@ -269,9 +285,9 @@ export function OrgChart({ units, canEdit, title = "Organization", positionsFor,
       {/* Legend */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-3 py-2 text-xs text-muted-foreground">
         {legend.map((g) => (
-          <span key={g.grp} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span></span>
+          <span key={g.type} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] border border-black/10" style={{ background: g.color }} /> {g.label} <span className="tnum opacity-60">{g.count}</span></span>
         ))}
-        <span className="ml-auto">{units.length} units · same-type groups fold when &gt; 5 · Ctrl+scroll zoom</span>
+        <span className="ml-auto">{units.length} units · same-type groups fold when &gt; 5 · scroll to zoom · drag to pan</span>
       </div>
     </div>
   );
