@@ -40,38 +40,39 @@ export interface UnitTypeDef {
 }
 
 /**
- * Type colors follow the client's org-chart legend (eng.pdf): governance is
- * green, the executive board is red, offices brown, departments grey,
- * divisions/sections light grey, CoEs tan, tribes lime, functional areas
- * orange, processes dark orange, branches olive. Boxes are filled with these
- * colors and text auto-contrasts (see readableText).
+ * Type colors follow the client's org-chart legend (eng.pdf) but in soft PASTEL
+ * tones: governance mint-green, the executive board coral, deputies soft blue,
+ * offices taupe, departments sage, divisions/sections light grey, CoEs sand,
+ * tribes lime, functional areas apricot, processes peach, branches olive. Boxes
+ * are filled with these colors and text auto-contrasts to near-black (see
+ * readableText) — the light pastels keep the chart calm and easy to scan.
  */
 export const UNIT_TYPES: UnitTypeDef[] = [
   // Corporate
-  { key: "parent_company", label: "Parent Company", labelAz: "Baş şirkət", group: "corporate", color: "#E23B36" },
-  { key: "subsidiary", label: "Subsidiary", labelAz: "Törəmə", group: "corporate", color: "#3FA9E0" },
-  { key: "company", label: "Company", labelAz: "Şirkət", group: "corporate", color: "#E23B36" },
+  { key: "parent_company", label: "Parent Company", labelAz: "Baş şirkət", group: "corporate", color: "#F3B0AA" },
+  { key: "subsidiary", label: "Subsidiary", labelAz: "Törəmə", group: "corporate", color: "#AACFEC" },
+  { key: "company", label: "Company", labelAz: "Şirkət", group: "corporate", color: "#F3B0AA" },
   // Governance — green family
-  { key: "governance_body", label: "Governance body", labelAz: "Ali orqan", group: "governance", color: "#2FA84F" },
-  { key: "leadership", label: "Board of Directors", labelAz: "Rəhbərlik", group: "governance", color: "#E23B36" },
-  { key: "committee", label: "Committee", labelAz: "Komitə", group: "governance", color: "#2FA84F" },
-  { key: "commission", label: "Commission", labelAz: "Komissiya", group: "governance", color: "#2FA84F" },
-  { key: "expert_group", label: "Expert group", labelAz: "Ekspert qrupu", group: "governance", color: "#2FA84F" },
+  { key: "governance_body", label: "Governance body", labelAz: "Ali orqan", group: "governance", color: "#A6DCC0" },
+  { key: "leadership", label: "Board of Directors", labelAz: "Rəhbərlik", group: "governance", color: "#F3B0AA" },
+  { key: "committee", label: "Committee", labelAz: "Komitə", group: "governance", color: "#A6DCC0" },
+  { key: "commission", label: "Commission", labelAz: "Komissiya", group: "governance", color: "#A6DCC0" },
+  { key: "expert_group", label: "Expert group", labelAz: "Ekspert qrupu", group: "governance", color: "#A6DCC0" },
   // Structural (non-agile)
-  { key: "department", label: "Department", labelAz: "Departament", group: "non_agile", color: "#9AA08C" },
-  { key: "division", label: "Division", labelAz: "Şöbə", group: "non_agile", color: "#D5D8CD" },
-  { key: "section", label: "Section", labelAz: "Bölmə", group: "non_agile", color: "#D5D8CD" },
-  { key: "unit", label: "Unit", labelAz: "Vahid", group: "non_agile", color: "#D5D8CD" },
-  { key: "office", label: "Office", labelAz: "Ofis / İdarə", group: "non_agile", color: "#6E4B2A" },
-  { key: "process", label: "Process", labelAz: "Proses", group: "non_agile", color: "#C0561E" },
-  { key: "branches", label: "Branches", labelAz: "Yerli bölmələr", group: "non_agile", color: "#6F8B1F" },
+  { key: "department", label: "Department", labelAz: "Departament", group: "non_agile", color: "#C8CFBE" },
+  { key: "division", label: "Division", labelAz: "Şöbə", group: "non_agile", color: "#E6E9E0" },
+  { key: "section", label: "Section", labelAz: "Bölmə", group: "non_agile", color: "#E6E9E0" },
+  { key: "unit", label: "Unit", labelAz: "Vahid", group: "non_agile", color: "#E6E9E0" },
+  { key: "office", label: "Office", labelAz: "Ofis / İdarə", group: "non_agile", color: "#DBC1A6" },
+  { key: "process", label: "Process", labelAz: "Proses", group: "non_agile", color: "#EEB58C" },
+  { key: "branches", label: "Branches", labelAz: "Yerli bölmələr", group: "non_agile", color: "#C6D29A" },
   // Agile
-  { key: "tribe", label: "Tribe", labelAz: "Sahə", group: "agile", color: "#C3E252" },
-  { key: "functional_area", label: "Functional area", labelAz: "Funksional sahə", group: "agile", color: "#E88A3C" },
-  { key: "coe", label: "CoE", labelAz: "Ekspert mərkəzi", group: "agile", color: "#E7C98C" },
-  { key: "squad", label: "Squad", labelAz: "Skvad", group: "agile", color: "#C3E252" },
-  { key: "chapter", label: "Chapter", labelAz: "Çapter", group: "agile", color: "#5FC9C0" },
-  { key: "guild", label: "Guild", labelAz: "Gild", group: "agile", color: "#5FC9C0" },
+  { key: "tribe", label: "Tribe", labelAz: "Sahə", group: "agile", color: "#DEE9A0" },
+  { key: "functional_area", label: "Functional area", labelAz: "Funksional sahə", group: "agile", color: "#F4CBA0" },
+  { key: "coe", label: "CoE", labelAz: "Ekspert mərkəzi", group: "agile", color: "#ECDCB4" },
+  { key: "squad", label: "Squad", labelAz: "Skvad", group: "agile", color: "#DEE9A0" },
+  { key: "chapter", label: "Chapter", labelAz: "Çapter", group: "agile", color: "#B4E1DB" },
+  { key: "guild", label: "Guild", labelAz: "Gild", group: "agile", color: "#B4E1DB" },
 ];
 
 /** True luminance-based text color for a filled box (WCAG-ish threshold). */
@@ -92,7 +93,7 @@ export function readableText(hex: string): string {
 export function unitColor(type: string, name?: string, nameEn?: string): string {
   if (type === "leadership") {
     const plainDeputy = /^(deputy chairman of the board|idar[əe] hey[əe]ti s[əe]drinin m[üu]avini)$/i;
-    if ((name && plainDeputy.test(name.trim())) || (nameEn && plainDeputy.test(nameEn.trim()))) return "#3FA9E0";
+    if ((name && plainDeputy.test(name.trim())) || (nameEn && plainDeputy.test(nameEn.trim()))) return "#AACFEC";
   }
   return typeDef(type).color;
 }

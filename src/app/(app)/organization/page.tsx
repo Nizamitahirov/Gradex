@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Network, Plus, Users, UserPlus, Boxes, Pencil, ChevronRight, UploadCloud, Download, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Network, Plus, Users, UserPlus, Boxes, Pencil, ChevronRight, UploadCloud, Download, FileSpreadsheet, Loader2, Move, GripVertical } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useOrgUnits, useOrgUnitMutations } from "@/hooks/use-org-units";
-import { buildTree, typeDef, childTypeOf, type OrgUnit, type OrgNode } from "@/lib/org/structure";
+import { buildTree, typeDef, childTypeOf, descendantIds, type OrgUnit, type OrgNode } from "@/lib/org/structure";
+import { cn } from "@/lib/utils";
 import { downloadStructureTemplate, parseStructure, type ParsedNode } from "@/lib/org/structure-file";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -32,8 +33,13 @@ export default function OrganizationPage() {
 
   const units = React.useMemo(() => data?.units ?? [], [data]);
   const [view, setView] = React.useState<"chart" | "table">("chart");
+  const [editMode, setEditMode] = React.useState(false);
   const [dialog, setDialog] = React.useState<null | { unit: OrgUnit | null; parentId?: string | null; type?: string }>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
+  // Table drag-to-reparent state (chart has its own).
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [overId, setOverId] = React.useState<string | null>(null);
+  const blocked = React.useMemo(() => (dragId ? new Set([dragId, ...descendantIds(units, dragId)]) : new Set<string>()), [dragId, units]);
 
   // "Positions" derived from real jobs, matched by name & type.
   const jobs = React.useMemo(() => org?.jobs ?? [], [org]);
@@ -68,7 +74,14 @@ export default function OrganizationPage() {
   }, [roots]);
 
   const reparent = (id: string, newParentId: string | null) =>
-    update.mutate({ id, parentId: newParentId }, { onError: (e) => toast.error(e instanceof Error ? e.message : "Failed") });
+    update.mutate({ id, parentId: newParentId }, {
+      onSuccess: () => toast.success("Struktur yeniləndi"),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    });
+  const dropRow = (targetId: string | null) => {
+    if (dragId && dragId !== targetId && !(targetId && blocked.has(targetId))) reparent(dragId, targetId);
+    setDragId(null); setOverId(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -101,6 +114,20 @@ export default function OrganizationPage() {
             <TabsTrigger value="table"><Boxes className="mr-1.5 size-4" /> Table</TabsTrigger>
           </TabsList>
         </Tabs>
+        {canEdit && (
+          <Button
+            variant={editMode ? "default" : "outline"}
+            onClick={() => { setEditMode((v) => !v); setDragId(null); setOverId(null); }}
+            title="Kartları sürüşdürüb başqa qovşağa bağlayın"
+          >
+            <Move className="size-4" /> {editMode ? "Redaktə: aktiv" : "Redaktə rejimi"}
+          </Button>
+        )}
+        {editMode && (
+          <span className="text-xs text-muted-foreground">
+            Kartı/sətri sürüşdürüb başqa qovşağa buraxın — o qovşağın altına bağlanacaq.
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -123,6 +150,7 @@ export default function OrganizationPage() {
         <OrgChart
           units={units}
           canEdit={canEdit}
+          editMode={editMode}
           title={org?.org?.name ?? "Organization"}
           positionsFor={positionsFor}
           onAddChild={(p) => setDialog({ unit: null, parentId: p.id, type: childTypeOf(p.type) })}
@@ -155,6 +183,7 @@ export default function OrganizationPage() {
                       positionsFor={positionsFor}
                       onAddChild={(p) => setDialog({ unit: null, parentId: p.id, type: childTypeOf(p.type) })}
                       onEdit={(u) => setDialog({ unit: u })}
+                      dnd={{ editMode, dragId, overId, blocked, setDragId, setOverId, dropRow }}
                     />
                   ))}
                 </tbody>
@@ -258,8 +287,18 @@ function BulkDialog({ hasExisting, onClose }: { hasExisting: boolean; onClose: (
   );
 }
 
+interface Dnd {
+  editMode: boolean;
+  dragId: string | null;
+  overId: string | null;
+  blocked: Set<string>;
+  setDragId: (id: string | null) => void;
+  setOverId: (id: string | null) => void;
+  dropRow: (targetId: string | null) => void;
+}
+
 function TableRows({
-  node, canEdit, canCreate, positionsFor, onAddChild, onEdit,
+  node, canEdit, canCreate, positionsFor, onAddChild, onEdit, dnd,
 }: {
   node: OrgNode;
   canEdit: boolean;
@@ -267,15 +306,34 @@ function TableRows({
   positionsFor: (u: OrgUnit) => number;
   onAddChild: (p: OrgUnit) => void;
   onEdit: (u: OrgUnit) => void;
+  dnd: Dnd;
 }) {
   const td = typeDef(node.type);
+  const drag = dnd.editMode && canEdit;
+  const isTarget = dnd.overId === node.id && dnd.dragId && !dnd.blocked.has(node.id);
+  const isBlockedTarget = dnd.overId === node.id && dnd.dragId != null && dnd.blocked.has(node.id);
   return (
     <>
-      <tr className="border-b border-border last:border-0 hover:bg-accent/40">
+      <tr
+        draggable={drag}
+        onDragStart={drag ? (e) => { dnd.setDragId(node.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
+        onDragEnd={() => { dnd.setDragId(null); dnd.setOverId(null); }}
+        onDragOver={drag ? (e) => { if (dnd.dragId && dnd.dragId !== node.id) { e.preventDefault(); dnd.setOverId(node.id); } } : undefined}
+        onDragLeave={() => { if (dnd.overId === node.id) dnd.setOverId(null); }}
+        onDrop={drag ? (e) => { e.preventDefault(); dnd.dropRow(node.id); } : undefined}
+        className={cn(
+          "border-b border-border last:border-0 hover:bg-accent/40",
+          drag && "cursor-grab",
+          dnd.dragId === node.id && "opacity-40",
+          isTarget && "bg-primary/10 outline outline-2 -outline-offset-2 outline-primary",
+          isBlockedTarget && "bg-destructive/10 outline outline-2 -outline-offset-2 outline-destructive/50",
+        )}
+      >
         <td className="px-4 py-2.5">
           <span className="flex items-start" style={{ paddingLeft: node.depth * 18 }}>
-            {node.depth > 0 && <ChevronRight className="mr-1 mt-0.5 size-3.5 shrink-0 text-muted-foreground/50" />}
-            <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ background: td.color }} />
+            {drag && <GripVertical className="mr-1 mt-0.5 size-3.5 shrink-0 text-muted-foreground/50" />}
+            {!drag && node.depth > 0 && <ChevronRight className="mr-1 mt-0.5 size-3.5 shrink-0 text-muted-foreground/50" />}
+            <span className="mt-1 size-2.5 shrink-0 rounded-full border border-black/10" style={{ background: td.color }} />
             <span className="ml-2 min-w-0">
               <span className="block font-medium leading-tight">{node.name}</span>
               {node.nameEn && <span className="block text-[11px] text-muted-foreground">{node.nameEn}</span>}
@@ -283,7 +341,7 @@ function TableRows({
           </span>
         </td>
         <td className="px-3 py-2.5">
-          <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${td.color}1a`, color: td.color }}>{td.label}</span>
+          <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${td.color}55`, color: "#1a1c2e" }}>{td.label}</span>
         </td>
         <td className="px-3 py-2.5 text-right tnum">{node.headcount ?? 0}</td>
         <td className="px-3 py-2.5 text-right tnum">{node.vacancies ?? 0}</td>
@@ -299,7 +357,7 @@ function TableRows({
         )}
       </tr>
       {node.children.map((c) => (
-        <TableRows key={c.id} node={c} canEdit={canEdit} canCreate={canCreate} positionsFor={positionsFor} onAddChild={onAddChild} onEdit={onEdit} />
+        <TableRows key={c.id} node={c} canEdit={canEdit} canCreate={canCreate} positionsFor={positionsFor} onAddChild={onAddChild} onEdit={onEdit} dnd={dnd} />
       ))}
     </>
   );
