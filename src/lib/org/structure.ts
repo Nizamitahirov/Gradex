@@ -39,33 +39,63 @@ export interface UnitTypeDef {
   color: string;
 }
 
+/**
+ * Type colors follow the client's org-chart legend (eng.pdf): governance is
+ * green, the executive board is red, offices brown, departments grey,
+ * divisions/sections light grey, CoEs tan, tribes lime, functional areas
+ * orange, processes dark orange, branches olive. Boxes are filled with these
+ * colors and text auto-contrasts (see readableText).
+ */
 export const UNIT_TYPES: UnitTypeDef[] = [
   // Corporate
-  { key: "parent_company", label: "Parent Company", labelAz: "Baş şirkət", group: "corporate", color: "#5B5BF5" },
-  { key: "subsidiary", label: "Subsidiary", labelAz: "Törəmə", group: "corporate", color: "#7C6CF6" },
-  { key: "company", label: "Company", labelAz: "Şirkət", group: "corporate", color: "#6366F1" },
-  // Governance
-  { key: "governance_body", label: "Governance body", labelAz: "Ali orqan", group: "governance", color: "#5B5BF5" },
-  { key: "leadership", label: "Leadership", labelAz: "Rəhbərlik", group: "governance", color: "#4338CA" },
-  { key: "committee", label: "Committee", labelAz: "Komitə", group: "governance", color: "#6366F1" },
-  { key: "commission", label: "Commission", labelAz: "Komissiya", group: "governance", color: "#8B5CF6" },
-  { key: "expert_group", label: "Expert group", labelAz: "Ekspert qrupu", group: "governance", color: "#7C3AED" },
+  { key: "parent_company", label: "Parent Company", labelAz: "Baş şirkət", group: "corporate", color: "#E23B36" },
+  { key: "subsidiary", label: "Subsidiary", labelAz: "Törəmə", group: "corporate", color: "#3FA9E0" },
+  { key: "company", label: "Company", labelAz: "Şirkət", group: "corporate", color: "#E23B36" },
+  // Governance — green family
+  { key: "governance_body", label: "Governance body", labelAz: "Ali orqan", group: "governance", color: "#2FA84F" },
+  { key: "leadership", label: "Board of Directors", labelAz: "Rəhbərlik", group: "governance", color: "#E23B36" },
+  { key: "committee", label: "Committee", labelAz: "Komitə", group: "governance", color: "#2FA84F" },
+  { key: "commission", label: "Commission", labelAz: "Komissiya", group: "governance", color: "#2FA84F" },
+  { key: "expert_group", label: "Expert group", labelAz: "Ekspert qrupu", group: "governance", color: "#2FA84F" },
   // Structural (non-agile)
-  { key: "department", label: "Department", labelAz: "Departament", group: "non_agile", color: "#3B82F6" },
-  { key: "division", label: "Division", labelAz: "Şöbə", group: "non_agile", color: "#0EA5E9" },
-  { key: "section", label: "Section", labelAz: "Bölmə", group: "non_agile", color: "#06B6D4" },
-  { key: "unit", label: "Unit", labelAz: "Vahid", group: "non_agile", color: "#F59E0B" },
-  { key: "office", label: "Office", labelAz: "Ofis / İdarə", group: "non_agile", color: "#14B8A6" },
-  { key: "process", label: "Process", labelAz: "Proses", group: "non_agile", color: "#64748B" },
-  { key: "branches", label: "Branches", labelAz: "Yerli bölmələr", group: "non_agile", color: "#0D9488" },
+  { key: "department", label: "Department", labelAz: "Departament", group: "non_agile", color: "#9AA08C" },
+  { key: "division", label: "Division", labelAz: "Şöbə", group: "non_agile", color: "#D5D8CD" },
+  { key: "section", label: "Section", labelAz: "Bölmə", group: "non_agile", color: "#D5D8CD" },
+  { key: "unit", label: "Unit", labelAz: "Vahid", group: "non_agile", color: "#D5D8CD" },
+  { key: "office", label: "Office", labelAz: "Ofis / İdarə", group: "non_agile", color: "#6E4B2A" },
+  { key: "process", label: "Process", labelAz: "Proses", group: "non_agile", color: "#C0561E" },
+  { key: "branches", label: "Branches", labelAz: "Yerli bölmələr", group: "non_agile", color: "#6F8B1F" },
   // Agile
-  { key: "tribe", label: "Tribe", labelAz: "Sahə", group: "agile", color: "#EC4899" },
-  { key: "functional_area", label: "Functional area", labelAz: "Funksional sahə", group: "agile", color: "#A855F7" },
-  { key: "coe", label: "CoE", labelAz: "Ekspert mərkəzi", group: "agile", color: "#16C098" },
-  { key: "squad", label: "Squad", labelAz: "Skvad", group: "agile", color: "#F472B6" },
-  { key: "chapter", label: "Chapter", labelAz: "Çapter", group: "agile", color: "#22D3EE" },
-  { key: "guild", label: "Guild", labelAz: "Gild", group: "agile", color: "#2DD4BF" },
+  { key: "tribe", label: "Tribe", labelAz: "Sahə", group: "agile", color: "#C3E252" },
+  { key: "functional_area", label: "Functional area", labelAz: "Funksional sahə", group: "agile", color: "#E88A3C" },
+  { key: "coe", label: "CoE", labelAz: "Ekspert mərkəzi", group: "agile", color: "#E7C98C" },
+  { key: "squad", label: "Squad", labelAz: "Skvad", group: "agile", color: "#C3E252" },
+  { key: "chapter", label: "Chapter", labelAz: "Çapter", group: "agile", color: "#5FC9C0" },
+  { key: "guild", label: "Guild", labelAz: "Gild", group: "agile", color: "#5FC9C0" },
 ];
+
+/** True luminance-based text color for a filled box (WCAG-ish threshold). */
+export function readableText(hex: string): string {
+  const h = hex.replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const r = parseInt(n.slice(0, 2), 16) / 255, g = parseInt(n.slice(2, 4), 16) / 255, b = parseInt(n.slice(4, 6), 16) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.5 ? "#1a1c2e" : "#ffffff";
+}
+
+/**
+ * Color for a specific unit. Same as the type color, except a plain "Deputy
+ * Chairman of the Board" (no additional Chief role) is blue, matching the
+ * client legend where deputies are a distinct category.
+ */
+export function unitColor(type: string, name?: string, nameEn?: string): string {
+  if (type === "leadership") {
+    const plainDeputy = /^(deputy chairman of the board|idar[əe] hey[əe]ti s[əe]drinin m[üu]avini)$/i;
+    if ((name && plainDeputy.test(name.trim())) || (nameEn && plainDeputy.test(nameEn.trim()))) return "#3FA9E0";
+  }
+  return typeDef(type).color;
+}
 
 export const GROUP_LABEL: Record<TypeGroup, string> = {
   corporate: "Corporate",
